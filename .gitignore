@@ -4,3 +4,8 @@
 # Python
 __pycache__/
 *.pyc
+
+# Electron: dependencias, paquetes compilados y la copia local de adb
+tenveo_electron/node_modules/
+tenveo_electron/dist/
+tenveo_electron/vendor/

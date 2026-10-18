@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tenveo Studio</title>
+  <link rel="stylesheet" href="./styles/app.css">
+  <script type="module" src="./js/app.js"></script>
+</head>
+<body>
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h9M18 7h2M4 17h4M13 17h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="15.5" cy="7" r="2.3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10.5" cy="17" r="2.3" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M2.5 9.2a14 14 0 0 1 19 0M5.6 12.6a9.5 9.5 0 0 1 12.8 0M8.8 16a4.8 4.8 0 0 1 6.4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="19.3" r="1.5" fill="currentColor"/></symbol>
+    <symbol id="i-sync" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 0 1-12.9 5.2M4.5 12a7.5 7.5 0 0 1 12.9-5.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M17.6 2.8v4.1h-4.1M6.4 21.2v-4.1h4.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-live" viewBox="0 0 24 24"><circle cx="12" cy="10" r="2.2" fill="currentColor"/><path d="M12 12.5V21M8.5 21h7M8.2 6.2a5.4 5.4 0 0 0 0 7.6M15.8 6.2a5.4 5.4 0 0 1 0 7.6M5.4 3.4a9.4 9.4 0 0 0 0 13.2M18.6 3.4a9.4 9.4 0 0 1 0 13.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-rec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5" fill="currentColor"/></symbol>
+    <symbol id="i-vcam" viewBox="0 0 24 24"><rect x="2.5" y="6.5" width="12.5" height="11" rx="2.2" fill="currentColor"/><path d="M15.5 10.6 21.5 7v10l-6-3.6z" fill="currentColor"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><rect x="2.5" y="6.5" width="12.5" height="11" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M15.5 10.6 21.5 7v10l-6-3.6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="i-eq" viewBox="0 0 24 24"><path d="M6 20v-9M12 20V4M18 20v-6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3.5 8.5 4.8-8.5 4.8-8.5-4.8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m3.5 13.2 8.5 4.8 8.5-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-radio-on" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="currentColor"/></symbol>
+    <symbol id="i-radio-off" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  </svg>
+
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-badge">TENVEO PC500</span>
+        <span class="brand-sub">STUDIO LINK</span>
+      </div>
+      <button class="hw-status" id="hw-status" type="button" data-action="open-settings">
+        <span class="dot"></span>
+        <span id="hw-text">BUSCANDO PC500 (USB / LAN)...</span>
+        <svg class="icon"><use href="#i-settings"/></svg>
+      </button>
+      <span class="ndi-tag"><svg class="icon"><use href="#i-wifi"/></svg>NDI|HX CERTIFIED</span>
+      <span class="demo-tag" id="demo-tag" title="Modo demo: el PC500 y OBS son simuladores dentro de la página" hidden>DEMO · SIMULADOR</span>
+      <span class="spacer"></span>
+      <button class="sync-toggle" id="sync-toggle" type="button" data-action="toggle-sync" aria-pressed="true">
+        <svg class="icon"><use href="#i-sync"/></svg>SYNC OBS
+      </button>
+      <button class="obs-btn" id="obs-stream" type="button" data-action="obs-stream"><svg class="icon"><use href="#i-live"/></svg>LIVE</button>
+      <button class="obs-btn" id="obs-record" type="button" data-action="obs-record"><svg class="icon"><use href="#i-rec"/></svg>REC</button>
+      <button class="obs-btn obs-btn--blue" id="obs-vcam" type="button" data-action="obs-vcam"><svg class="icon"><use href="#i-vcam"/></svg>VCAM</button>
+    </header>
+
+    <main class="workspace">
+      <section class="deck-area">
+        <div class="monitors">
+          <article class="monitor monitor--pvw">
+            <div class="monitor-head">
+              <span class="monitor-title">PREVIEW (PVW)</span>
+              <span class="monitor-badge">ARMED</span>
+            </div>
+            <div class="monitor-body">
+              <svg class="monitor-icon"><use href="#i-camera"/></svg>
+              <div class="monitor-cam" id="pvw-label">CAMERA 2 (HDMI 2)</div>
+              <div class="monitor-feed">1080p60 USB &amp; ETHERNET NDI FEED</div>
+            </div>
+          </article>
+          <article class="monitor monitor--pgm" id="pgm-monitor">
+            <div class="monitor-head">
+              <span class="monitor-title">PROGRAM (PGM)</span>
+              <span class="monitor-badge">LIVE ON AIR</span>
+            </div>
+            <div class="monitor-body">
+              <svg class="monitor-icon"><use href="#i-camera"/></svg>
+              <div class="monitor-cam" id="pgm-label">CAMERA 1 (HDMI 1)</div>
+              <div class="monitor-feed">1080p60 USB &amp; ETHERNET NDI FEED</div>
+            </div>
+          </article>
+        </div>
+
+        <div class="deck">
+          <div class="buses">
+            <div class="bus bus--pgm">
+              <div class="bus-title"><span class="dot"></span>PROGRAM (DIRECT ON AIR)</div>
+              <div class="bus-buttons" id="bus-pgm"></div>
+            </div>
+            <hr class="bus-divider">
+            <div class="bus bus--pvw">
+              <div class="bus-title"><span class="dot"></span>PREVIEW (NEXT TRANSITION)</div>
+              <div class="bus-buttons" id="bus-pvw"></div>
+            </div>
+          </div>
+
+          <div class="deck-sep"></div>
+
+          <div class="transitions">
+            <div class="trans-buttons">
+              <button class="tally tally--action" id="btn-cut" type="button" data-action="cut"><span class="tally-label">CUT</span><span class="tally-sub">DIRECT</span></button>
+              <button class="tally tally--action" id="btn-auto" type="button" data-action="auto"><span class="tally-label">AUTO</span><span class="tally-sub">TRANS</span></button>
+              <button class="tally tally--action tally--ftb" id="btn-ftb" type="button" data-action="ftb"><span class="tally-label">FTB</span><span class="tally-sub">BLACK</span></button>
+            </div>
+            <div class="tbar" id="tbar">
+              <div class="tbar-title">T-BAR</div>
+              <div class="tbar-track" id="tbar-track" role="slider" tabindex="0" aria-label="T-Bar de transición" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div class="tbar-groove"></div>
+                <div class="tbar-handle" id="tbar-handle"><span></span></div>
+              </div>
+              <div class="tbar-value" id="tbar-value">0%</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side">
+        <div class="panel-head">
+          <svg class="icon"><use href="#i-eq"/></svg>
+          <span class="panel-title">AUDIO MIXER</span>
+          <span class="chip">48 kHz USB</span>
+        </div>
+        <div class="mixer" id="mixer"></div>
+        <div class="side-divider"></div>
+        <div class="panel-head panel-head--obs">
+          <svg class="icon"><use href="#i-layers"/></svg>
+          <span class="panel-title">OBS SCENES</span>
+          <span class="obs-link" id="obs-link">OFFLINE</span>
+        </div>
+        <div class="scenes" id="scenes"></div>
+      </aside>
+    </main>
+  </div>
+
+  <dialog class="dialog" id="settings-dialog" aria-labelledby="settings-title">
+    <form class="dialog-form" id="settings-form" novalidate>
+      <h2 id="settings-title">Conexión Tenveo PC500 (Plug &amp; Play)</h2>
+      <p class="dialog-text">El software detecta automáticamente el PC500 por USB mediante el puente ADB. Si prefieres conectarlo por Ethernet (LAN), escribe su dirección IP:</p>
+      <label class="field">
+        <span>IP Ethernet del PC500 (ej. 192.168.1.188)</span>
+        <input id="field-ip" name="ethernetIp" type="text" inputmode="decimal" placeholder="192.168.1.188" autocomplete="off" spellcheck="false">
+      </label>
+      <div class="adb-box">
+        <strong>Puente USB (ADB)</strong>
+        <span id="adb-text">Buscando adb…</span>
+      </div>
+      <fieldset class="obs-fields">
+        <legend>OBS Studio (WebSocket v5)</legend>
+        <div class="field-row">
+          <label class="field">
+            <span>Host</span>
+            <input id="field-obs-host" name="obsHost" type="text" placeholder="127.0.0.1" autocomplete="off" spellcheck="false">
+          </label>
+          <label class="field field--port">
+            <span>Puerto</span>
+            <input id="field-obs-port" name="obsPort" type="number" min="1" max="65535" placeholder="4455">
+          </label>
+        </div>
+        <label class="field">
+          <span>Contraseña</span>
+          <input id="field-obs-pass" name="obsPassword" type="password" autocomplete="off" placeholder="Sin contraseña">
+        </label>
+        <label class="check" id="field-obs-clear-row">
+          <input id="field-obs-clear" name="clearObsPassword" type="checkbox">
+          <span>Quitar la contraseña guardada</span>
+        </label>
+      </fieldset>
+      <p class="form-error" id="settings-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button class="btn btn--ghost" type="button" data-action="open-panel">Abrir panel web original</button>
+        <span class="spacer"></span>
+        <button class="btn btn--ghost" type="button" data-action="auto-usb">Auto-detectar USB</button>
+        <button class="btn btn--ghost" type="button" data-action="close-settings">Cancelar</button>
+        <button class="btn btn--primary" type="submit">Guardar y conectar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>

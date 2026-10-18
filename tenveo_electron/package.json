@@ -1,0 +1,67 @@
+{
+  "name": "tenveo-studio",
+  "productName": "Tenveo Studio",
+  "version": "1.0.0",
+  "description": "Consola para controlar el switcher Tenveo PC500 y OBS Studio desde la Mac",
+  "author": "ThePunisherBaby",
+  "private": true,
+  "type": "module",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "node scripts/start.mjs",
+    "test": "node --test --test-concurrency=1 \"test/**/*.test.js\"",
+    "mock": "node scripts/mock-servers.mjs",
+    "web": "node scripts/serve-web.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "smoke:web": "node scripts/smoke-web.mjs",
+    "prepare-adb": "node scripts/prepare-adb.mjs",
+    "dist": "node scripts/prepare-adb.mjs && electron-builder --mac --universal",
+    "dist:x64": "node scripts/prepare-adb.mjs && electron-builder --mac --x64",
+    "dist:arm64": "node scripts/prepare-adb.mjs && electron-builder --mac --arm64"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3",
+    "ws": "8.22.0"
+  },
+  "build": {
+    "appId": "com.tenveo.studiolink",
+    "productName": "Tenveo Studio",
+    "artifactName": "TenveoStudio-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "package.json",
+      "src/main/**/*",
+      "src/preload/**/*",
+      "src/core/**/*",
+      "src/renderer/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor/platform-tools",
+        "to": "platform-tools",
+        "filter": [
+          "adb",
+          "NOTICE.txt"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.video",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "x64ArchFiles": "**/platform-tools/adb",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "Tenveo Studio"
+    }
+  }
+}
