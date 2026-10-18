@@ -173,3 +173,21 @@ test('un adb trabado no deja esperando al puente', async () => {
   await assert.rejects(runFile('/bin/sh', ['-c', "trap '' TERM; sleep 4"], 300), /adb no respondió/);
   assert.ok(Date.now() - started < 2500);
 });
+
+test('si adb queda trabado, espera cada vez más entre intentos y no intenta limpiar', async () => {
+  const calls = [];
+  const run = async (_file, args) => {
+    calls.push(args.join(' '));
+    throw new Error('adb no respondió');
+  };
+  const bridge = new AdbBridge({ adbPath: '/fake/adb', run, pollMs: 1000 });
+  bridge.setNetworkTarget(LINK_LOCAL);
+  await bridge.start();
+  assert.equal(bridge.status.state, 'error');
+  assert.match(bridge.status.message, /adb no responde/);
+  // 10 veces el intervalo normal la primera vez, y crece.
+  assert.equal(bridge.nextWaitMs, 10000);
+  await bridge.stop();
+  // Con adb trabado no se lanzan más comandos para limpiar.
+  assert.deepEqual(calls, ['devices -l']);
+});

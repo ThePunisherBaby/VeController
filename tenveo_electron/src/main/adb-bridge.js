@@ -138,6 +138,7 @@ export class AdbBridge extends EventEmitter {
   #owned = null;
   #retryAt = 0;
   #lastServerRestart = 0;
+  #hung = 0; // veces seguidas que adb no respondió
   #status = { state: 'idle', adbPath: null, rtmpForwarded: false, message: '' };
 
   constructor({ adbPath = null, findOptions = {}, finder = findAdb, run = runFile, pollMs = 3000, refreshEvery = 5 } = {}) {
@@ -248,7 +249,8 @@ export class AdbBridge extends EventEmitter {
     this.#forwarded = null;
     this.#owned = null;
     this.#retryAt = 0;
-    if (!this.#adbPath) return;
+    // Con adb trabado, cada comando quedaría colgado: no se intenta limpiar.
+    if (!this.#adbPath || this.#hung > 0) return;
     if (forwarded) {
       try {
         await this.#run(this.#adbPath, ['-s', forwarded, 'forward', '--remove', `tcp:${RTMP_FORWARD_PORT}`]);
@@ -268,12 +270,34 @@ export class AdbBridge extends EventEmitter {
 
   async #loop() {
     if (!this.#running) return;
+    let wait = this.#pollMs;
     try {
       await this.tick();
+      this.#hung = 0;
     } catch (error) {
-      if (this.#running) this.#setStatus({ state: 'error', message: String(error?.message ?? error) });
+      const message = String(error?.message ?? error);
+      if (/no respondió/.test(message)) {
+        // adb trabado dentro del sistema: cada intento deja otro proceso
+        // colgado, así que se espera cada vez más (hasta 5 minutos).
+        this.#hung += 1;
+        wait = Math.min(300000, this.#pollMs * 10 * 2 ** (this.#hung - 1));
+        if (this.#running) {
+          this.#forwarded = null;
+          this.#setStatus({
+            state: 'error',
+            message: 'adb no responde (se quedó trabado en esta Mac; se arregla al reiniciarla). Para el video por cable directo, pon en la Mac una IP de la red del PC500.',
+          });
+        }
+      } else if (this.#running) {
+        this.#setStatus({ state: 'error', message });
+      }
     }
-    if (this.#running) this.#timer = setTimeout(() => this.#loop(), this.#pollMs);
+    if (this.#running) this.#timer = setTimeout(() => this.#loop(), wait);
+  }
+
+  // Cuánto espera el puente antes de la próxima revisión (para las pruebas).
+  get nextWaitMs() {
+    return this.#hung ? Math.min(300000, this.#pollMs * 10 * 2 ** (this.#hung - 1)) : this.#pollMs;
   }
 
   #setStatus(patch) {

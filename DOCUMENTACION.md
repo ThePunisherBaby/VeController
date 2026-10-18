@@ -218,6 +218,7 @@ Cliente del protocolo **OBS WebSocket v5** (por defecto `ws://127.0.0.1:4455`):
 ### 4.6 Video por adb en red ([`adb-bridge.js`](tenveo_electron/src/main/adb-bridge.js))
 - Busca `adb` en este orden: copia incluida en la app, `vendor/`, `ANDROID_HOME` o `ANDROID_SDK_ROOT`, rutas comunes, el `PATH` y el shell de inicio del usuario.
 - Solo se usa cuando la app controla el PC500 por la red y la Mac no comparte su red IPv4 (cable directo). Entonces se conecta a `<dirección>:5555` y reenvía el 19350 → 1935. Revisa cada 3 s; si falla, espera unas vueltas antes de reintentar.
+- Si adb no responde (en esta Mac llegó a quedar trabado dentro del sistema hasta reiniciarla), el puente espera cada vez más entre intentos (30 s, 1 min, 2 min… hasta 5 min) para no ir dejando procesos colgados, y la línea de estado pide poner en la Mac una IP de la red del PC500.
 - Al cerrar la app quita el reenvío y desconecta el adb por red si lo conectó ella.
 
 ### 4.7 Interfaz
