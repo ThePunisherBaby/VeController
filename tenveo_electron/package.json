@@ -1,7 +1,7 @@
 {
   "name": "tenveo-studio",
   "productName": "Tenveo Studio",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Consola para controlar el switcher Tenveo PC500 y OBS Studio desde la Mac",
   "author": "ThePunisherBaby",
   "private": true,
@@ -14,6 +14,7 @@
     "web": "node scripts/serve-web.mjs",
     "smoke": "node scripts/smoke.mjs",
     "smoke:web": "node scripts/smoke-web.mjs",
+    "smoke:video": "node scripts/smoke-video.mjs",
     "prepare-adb": "node scripts/prepare-adb.mjs",
     "dist": "node scripts/prepare-adb.mjs && electron-builder --mac --universal",
     "dist:x64": "node scripts/prepare-adb.mjs && electron-builder --mac --x64",
@@ -22,7 +23,8 @@
   "devDependencies": {
     "electron": "44.5.1",
     "electron-builder": "26.15.3",
-    "ws": "8.22.0"
+    "mpegts.js": "1.8.2",
+    "node-media-server": "4.4.3"
   },
   "build": {
     "appId": "com.tenveo.studiolink",
@@ -37,7 +39,12 @@
       "src/main/**/*",
       "src/preload/**/*",
       "src/core/**/*",
-      "src/renderer/**/*"
+      "src/renderer/**/*",
+      "!**/*.md"
+    ],
+    "electronLanguages": [
+      "es",
+      "en"
     ],
     "extraResources": [
       {
@@ -58,10 +65,17 @@
       "x64ArchFiles": "**/platform-tools/adb",
       "identity": "-",
       "hardenedRuntime": false,
-      "gatekeeperAssess": false
+      "gatekeeperAssess": false,
+      "extendInfo": {
+        "NSCameraUsageDescription": "Tenveo Studio muestra en el monitor PGM la salida de video USB del PC500.",
+        "NSLocalNetworkUsageDescription": "Tenveo Studio se conecta al switcher Tenveo PC500 y a OBS por la red local, y recibe su video."
+      }
     },
     "dmg": {
       "title": "Tenveo Studio"
     }
+  },
+  "dependencies": {
+    "ws": "8.22.0"
   }
 }

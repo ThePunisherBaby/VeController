@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createSwitcherState } from '../src/core/pc500-protocol.js';
 import { createObsState } from '../src/core/obs-service.js';
-import { StudioController, findSceneForCamera, normalizeSettings } from '../src/core/studio-controller.js';
+import { createSwitcherState } from '../src/core/pc500-protocol.js';
+import {
+  DEFAULT_SETTINGS,
+  StudioController,
+  findSceneForCamera,
+  normalizeSettings,
+} from '../src/core/studio-controller.js';
 
 class FakeService {
   constructor(state) {
@@ -34,6 +39,7 @@ class FakeTenveo extends FakeService {
   start() { return this.record('start'); }
   stop() { return this.record('stop'); }
   retry() { return this.record('retry'); }
+  setMode(mode) { return this.record('setMode', mode); }
   setEthernetIp(ip) { return this.record('setEthernetIp', ip); }
   selectPreview(cam) { return this.record('selectPreview', cam); }
   switchLive(cam) { return this.record('switchLive', cam); }
@@ -43,6 +49,7 @@ class FakeTenveo extends FakeService {
   setTbar(pos) { return this.record('setTbar', pos); }
   setVolume(ch, db) { return this.record('setVolume', ch, db); }
   toggleMute(ch) { return this.record('toggleMute', ch); }
+  pressButton(id) { return this.record('pressButton', id); }
 }
 
 class FakeObs extends FakeService {
@@ -108,57 +115,129 @@ test('solo acepta comandos y valores conocidos', () => {
   assert.throws(() => controller.dispatch('__proto__'), /Comando desconocido/);
   assert.throws(() => controller.dispatch('selectPreview', '9'), /Cámara desconocida/);
   assert.throws(() => controller.dispatch('setVolume', 'xx', -6), /Canal desconocido/);
+  assert.throws(() => controller.dispatch('pressButton', 'sys_ip'), /Botón desconocido/);
+  assert.throws(() => controller.dispatch('setConnectionMode', 'wifi'), /Modo de conexión desconocido/);
+  assert.throws(() => controller.dispatch('setVideoSource', 'ndi'), /Fuente de video desconocida/);
   controller.dispatch('switchLive', 'aux');
   controller.dispatch('toggleMute', 'mic1');
-  assert.deepEqual(tenveo.calls.slice(-2), [['switchLive', 'aux'], ['toggleMute', 'mic1']]);
+  controller.dispatch('pressButton', 'stream_2');
+  assert.deepEqual(tenveo.calls.slice(-3), [['switchLive', 'aux'], ['toggleMute', 'mic1'], ['pressButton', 'stream_2']]);
+});
+
+test('crea y guarda una clave de video desde el primer arranque', () => {
+  const { controller, saved } = setup();
+  const key = controller.snapshot().settings.videoKey;
+  assert.match(key, /^tenveo[a-z0-9]{1,8}$/);
+  assert.equal(saved[0][0].videoKey, key);
+  const again = setup({ settings: { videoKey: 'mia_123' } });
+  assert.equal(again.controller.snapshot().settings.videoKey, 'mia_123');
+  assert.equal(again.saved.length, 0);
+});
+
+test('cambia y guarda el modo de conexión y la fuente de video', () => {
+  const { controller, tenveo, saved } = setup();
+  controller.dispatch('setConnectionMode', 'network');
+  assert.deepEqual(tenveo.calls.at(-1), ['setMode', 'network']);
+  assert.equal(saved.at(-1)[0].connectionMode, 'network');
+  controller.dispatch('setVideoSource', 'usb', 'camara-123');
+  assert.equal(saved.at(-1)[0].videoSource, 'usb');
+  assert.equal(saved.at(-1)[0].videoDeviceId, 'camara-123');
+});
+
+test('aprende la IP que informa el equipo por USB', () => {
+  const { controller, tenveo } = setup();
+  tenveo.set({ connection: 'usb', device: { ...tenveo.state.device, ip: '192.168.1.50' } });
+  assert.equal(controller.snapshot().settings.ethernetIp, '192.168.1.50');
+  assert.equal(controller.snapshot().settings.ethernetIpSource, 'auto');
+  assert.deepEqual(tenveo.calls.at(-1), ['setEthernetIp', '192.168.1.50']);
+
+  // Si el equipo cambia de IP, la aprendida se actualiza.
+  tenveo.set({ device: { ...tenveo.state.device, ip: '192.168.1.60' } });
+  assert.equal(controller.snapshot().settings.ethernetIp, '192.168.1.60');
+});
+
+test('nunca pisa una IP escrita a mano ni aprende por Ethernet', () => {
+  const manual = setup({ settings: { ethernetIp: '10.0.0.9', ethernetIpSource: 'manual' } });
+  manual.tenveo.set({ connection: 'usb', device: { ...manual.tenveo.state.device, ip: '192.168.1.50' } });
+  assert.equal(manual.controller.snapshot().settings.ethernetIp, '10.0.0.9');
+
+  const lan = setup();
+  lan.tenveo.set({ connection: 'ethernet', device: { ...lan.tenveo.state.device, ip: '192.168.1.50' } });
+  assert.equal(lan.controller.snapshot().settings.ethernetIp, '');
 });
 
 test('guarda la configuración y reconecta', () => {
   const { controller, tenveo, obs, saved } = setup();
   const settings = controller.dispatch('saveSettings', {
     ethernetIp: ' 192.168.1.188 ',
+    connectionMode: 'auto',
     obsHost: '127.0.0.1',
     obsPort: '4456',
     obsPassword: 'secreto',
+    videoSource: 'push',
+    rtmpPort: '1936',
   });
   assert.equal(settings.ethernetIp, '192.168.1.188');
+  assert.equal(settings.ethernetIpSource, 'manual');
   assert.equal(settings.obsPort, 4456);
+  assert.equal(settings.videoSource, 'push');
+  assert.equal(settings.rtmpPort, 1936);
   assert.equal(settings.hasObsPassword, true);
-  assert.deepEqual(saved.at(-1), [{ ethernetIp: '192.168.1.188', obsHost: '127.0.0.1', obsPort: 4456, syncWithObs: true }, 'secreto']);
-  assert.deepEqual(tenveo.calls.find(([n, ip]) => n === 'setEthernetIp' && ip === '192.168.1.188'), ['setEthernetIp', '192.168.1.188']);
+  const [lastSettings, lastPassword] = saved.at(-1);
+  assert.equal(lastSettings.ethernetIp, '192.168.1.188');
+  assert.equal(lastPassword, 'secreto');
+  assert.ok(tenveo.calls.some(([n, ip]) => n === 'setEthernetIp' && ip === '192.168.1.188'));
   assert.deepEqual(obs.calls.filter(([n]) => n === 'configure').at(-1), ['configure', { host: '127.0.0.1', port: 4456, password: 'secreto' }]);
 
-  // Contraseña vacía: queda la que estaba.
   controller.dispatch('saveSettings', { obsPassword: '' });
   assert.equal(saved.at(-1)[1], undefined);
   assert.equal(controller.snapshot().settings.hasObsPassword, true);
 
-  // Quitar la contraseña.
   controller.dispatch('saveSettings', { clearObsPassword: true });
   assert.equal(saved.at(-1)[1], '');
   assert.equal(controller.snapshot().settings.hasObsPassword, false);
 });
 
-test('rechaza IP y puertos inválidos', () => {
+test('rechaza valores inválidos al guardar', () => {
   const { controller } = setup();
   assert.throws(() => controller.dispatch('saveSettings', { ethernetIp: 'http://x/' }), /IP no válida/);
   assert.throws(() => controller.dispatch('saveSettings', { obsPort: 70000 }), /Puerto de OBS no válido/);
   assert.throws(() => controller.dispatch('saveSettings', { obsHost: 'a b' }), /Dirección de OBS no válida/);
+  assert.throws(() => controller.dispatch('saveSettings', { connectionMode: 'bluetooth' }), /Modo de conexión no válido/);
+  assert.throws(() => controller.dispatch('saveSettings', { videoSource: 'ndi' }), /Fuente de video no válida/);
+  assert.throws(() => controller.dispatch('saveSettings', { rtmpPort: 0 }), /Puerto RTMP no válido/);
 });
 
 test('normaliza una configuración guardada', () => {
-  assert.deepEqual(normalizeSettings({ ethernetIp: 'mal/ip', obsHost: '', obsPort: 'abc', syncWithObs: 'si' }), {
-    ethernetIp: '',
-    obsHost: '127.0.0.1',
-    obsPort: 4455,
-    syncWithObs: true,
+  const bad = normalizeSettings({
+    ethernetIp: 'mal/ip',
+    obsHost: '',
+    obsPort: 'abc',
+    syncWithObs: 'si',
+    connectionMode: 'x',
+    videoSource: 'ndi',
+    videoKey: 'con espacios',
+    rtmpPort: 99999,
   });
-  assert.deepEqual(normalizeSettings({ ethernetIp: '10.0.0.5', obsHost: 'mac-estudio.local', obsPort: 4444, syncWithObs: false }), {
+  assert.deepEqual(bad, { ...DEFAULT_SETTINGS });
+
+  const good = normalizeSettings({
     ethernetIp: '10.0.0.5',
+    ethernetIpSource: 'auto',
+    connectionMode: 'network',
     obsHost: 'mac-estudio.local',
     obsPort: 4444,
     syncWithObs: false,
+    videoSource: 'pull',
+    videoDeviceId: 'abc',
+    videoKey: 'clave_1',
+    rtmpPort: 1936,
   });
+  assert.equal(good.connectionMode, 'network');
+  assert.equal(good.videoSource, 'pull');
+  assert.equal(good.videoKey, 'clave_1');
+  assert.equal(good.rtmpPort, 1936);
+  assert.equal(good.ethernetIpSource, 'auto');
 });
 
 test('la foto del estado no incluye los datos crudos del equipo', () => {

@@ -14,13 +14,14 @@ const READY = `(() => {
   const root = document.documentElement;
   return root.dataset.ready === 'true'
     && root.dataset.platform === 'browser'
-    && document.getElementById('hw-status').classList.contains('is-connected')
-    && document.getElementById('obs-link').textContent === 'LINKED';
+    && document.getElementById('hw-status').classList.contains('is-on')
+    && document.getElementById('obs-link').textContent === 'Conectado';
 })()`;
 
 const SUMMARY = `(() => ({
   platform: document.documentElement.dataset.platform,
   hardware: document.getElementById('hw-text').textContent,
+  hardwareTitle: document.getElementById('hw-status').title,
   obs: document.getElementById('obs-link').textContent,
   pgm: document.getElementById('pgm-label').textContent,
   pvw: document.getElementById('pvw-label').textContent,
@@ -37,8 +38,8 @@ app.whenReady().then(async () => {
     backgroundColor: '#101216',
     webPreferences: { contextIsolation: true, sandbox: true },
   });
-  win.webContents.on('console-message', (event, level, message) => {
-    console.log(`[web:${event.level ?? level}] ${event.message ?? message}`);
+  win.webContents.on('console-message', (event) => {
+    console.log(`[web:${event.level}] ${event.message}`);
   });
 
   try {

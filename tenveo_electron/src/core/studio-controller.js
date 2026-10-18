@@ -3,15 +3,38 @@
 // y, con SYNC OBS activo, cambia la escena de OBS cuando cambia la cámara al aire.
 
 import { Emitter } from './emitter.js';
-import { getChannel, isCamera } from './pc500-protocol.js';
-import { isValidHost } from './tenveo-service.js';
+import { getChannel, isCamera, isIPv4, isPanelButton } from './pc500-protocol.js';
+import { CONNECTION_MODES, isValidHost } from './tenveo-service.js';
+
+// off: sin video; push: el PC500 transmite a esta Mac; pull: la Mac lee el
+// servidor RTMP del PC500; usb: la salida USB (UVC) del equipo.
+export const VIDEO_SOURCES = Object.freeze(['off', 'push', 'pull', 'usb']);
 
 export const DEFAULT_SETTINGS = Object.freeze({
   ethernetIp: '',
+  ethernetIpSource: 'manual', // manual: la escribió el usuario; auto: la informó el equipo
+  connectionMode: 'auto',
   obsHost: '127.0.0.1',
   obsPort: 4455,
   syncWithObs: true,
+  videoSource: 'off',
+  videoDeviceId: '',
+  videoKey: '',
+  rtmpPort: 1935,
 });
+
+const VIDEO_KEY = /^[A-Za-z0-9_-]{1,64}$/;
+
+function isPort(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 && n < 65536;
+}
+
+export function randomVideoKey() {
+  const bytes = new Uint8Array(6);
+  globalThis.crypto.getRandomValues(bytes);
+  return `tenveo${[...bytes].map((b) => b.toString(36).padStart(2, '0')).join('').slice(0, 8)}`;
+}
 
 // Acepta solo valores válidos de una configuración guardada.
 export function normalizeSettings(input = {}) {
@@ -20,12 +43,21 @@ export function normalizeSettings(input = {}) {
     const ip = input.ethernetIp.trim();
     if (ip === '' || isValidHost(ip)) settings.ethernetIp = ip;
   }
+  if (input.ethernetIpSource === 'auto' || input.ethernetIpSource === 'manual') {
+    settings.ethernetIpSource = input.ethernetIpSource;
+  }
+  if (CONNECTION_MODES.includes(input.connectionMode)) settings.connectionMode = input.connectionMode;
   if (typeof input.obsHost === 'string' && isValidHost(input.obsHost.trim())) {
     settings.obsHost = input.obsHost.trim();
   }
-  const port = Number(input.obsPort);
-  if (Number.isInteger(port) && port > 0 && port < 65536) settings.obsPort = port;
+  if (isPort(input.obsPort)) settings.obsPort = Number(input.obsPort);
   if (typeof input.syncWithObs === 'boolean') settings.syncWithObs = input.syncWithObs;
+  if (VIDEO_SOURCES.includes(input.videoSource)) settings.videoSource = input.videoSource;
+  if (typeof input.videoDeviceId === 'string' && input.videoDeviceId.length <= 256) {
+    settings.videoDeviceId = input.videoDeviceId;
+  }
+  if (typeof input.videoKey === 'string' && VIDEO_KEY.test(input.videoKey)) settings.videoKey = input.videoKey;
+  if (isPort(input.rtmpPort)) settings.rtmpPort = Number(input.rtmpPort);
   return settings;
 }
 
@@ -50,6 +82,11 @@ function requireChannel(channel) {
   return String(channel);
 }
 
+function requireButton(id) {
+  if (!isPanelButton(id)) throw new RangeError(`Botón desconocido: ${id}`);
+  return String(id);
+}
+
 export class StudioController {
   #tenveo;
   #obs;
@@ -69,6 +106,18 @@ export class StudioController {
     setTbar: (position) => this.#tenveo.setTbar(position),
     setVolume: (channel, db) => this.#tenveo.setVolume(requireChannel(channel), db),
     toggleMute: (channel) => this.#tenveo.toggleMute(requireChannel(channel)),
+    pressButton: (id) => this.#tenveo.pressButton(requireButton(id)),
+    setConnectionMode: (mode) => {
+      if (!CONNECTION_MODES.includes(mode)) throw new RangeError(`Modo de conexión desconocido: ${mode}`);
+      this.#tenveo.setMode(mode);
+      return this.#updateSettings({ connectionMode: mode });
+    },
+    setVideoSource: (source, deviceId) => {
+      if (!VIDEO_SOURCES.includes(source)) throw new RangeError(`Fuente de video desconocida: ${source}`);
+      const patch = { videoSource: source };
+      if (typeof deviceId === 'string' && deviceId.length <= 256) patch.videoDeviceId = deviceId;
+      return this.#updateSettings(patch);
+    },
     toggleObsSync: () => this.#updateSettings({ syncWithObs: !this.#settings.syncWithObs }),
     obsToggleStream: () => this.#obs.toggleStream(),
     obsToggleRecord: () => this.#obs.toggleRecord(),
@@ -86,6 +135,11 @@ export class StudioController {
     this.#obsPassword = String(obsPassword ?? '');
     this.#persist = persist;
     this.#extras = { ...extras };
+    if (!this.#settings.videoKey) {
+      // Clave propia para el stream de video, guardada desde el primer arranque.
+      this.#settings.videoKey = randomVideoKey();
+      this.#persist(this.#settings, undefined);
+    }
   }
 
   get settings() {
@@ -105,11 +159,13 @@ export class StudioController {
         if (pgmChanged && this.#settings.syncWithObs && this.#obs.isConnected) {
           this.syncObsScene(state.pgm);
         }
+        this.#learnDeviceIp(state);
         this.#notify();
       }),
     );
     this.#unsubscribers.push(this.#obs.onChange(() => this.#notify()));
 
+    this.#tenveo.setMode(this.#settings.connectionMode);
     this.#tenveo.setEthernetIp(this.#settings.ethernetIp);
     this.#tenveo.start();
     this.#obs.configure({
@@ -158,15 +214,52 @@ export class StudioController {
     return match;
   }
 
+  // Con el equipo conectado por USB, guarda la IP que informa para poder
+  // seguir por red si se desconecta el cable. Nunca pisa una IP escrita a mano.
+  #learnDeviceIp(state) {
+    const ip = state.device?.ip;
+    if (state.connection !== 'usb' || !isIPv4(ip)) return;
+    const { ethernetIp, ethernetIpSource } = this.#settings;
+    if (ip === ethernetIp) return;
+    if (ethernetIp && ethernetIpSource === 'manual') return;
+    this.#settings = { ...this.#settings, ethernetIp: ip, ethernetIpSource: 'auto' };
+    this.#persist(this.#settings, undefined);
+    this.#tenveo.setEthernetIp(ip);
+  }
+
   // Guarda la configuración del diálogo y reconecta lo que haga falta.
   // obsPassword vacío deja la contraseña como estaba; clearObsPassword la borra.
-  saveSettings({ ethernetIp, obsHost, obsPort, obsPassword, clearObsPassword } = {}) {
+  saveSettings({
+    ethernetIp,
+    connectionMode,
+    obsHost,
+    obsPort,
+    obsPassword,
+    clearObsPassword,
+    videoSource,
+    videoDeviceId,
+    rtmpPort,
+  } = {}) {
     const next = { ...this.#settings };
 
     if (ethernetIp !== undefined) {
       const ip = String(ethernetIp ?? '').trim();
       if (ip && !isValidHost(ip)) throw new Error(`IP no válida: ${ip}`);
+      if (ip !== next.ethernetIp) next.ethernetIpSource = 'manual';
       next.ethernetIp = ip;
+    }
+    if (connectionMode !== undefined) {
+      if (!CONNECTION_MODES.includes(connectionMode)) throw new Error(`Modo de conexión no válido: ${connectionMode}`);
+      next.connectionMode = connectionMode;
+    }
+    if (videoSource !== undefined) {
+      if (!VIDEO_SOURCES.includes(videoSource)) throw new Error(`Fuente de video no válida: ${videoSource}`);
+      next.videoSource = videoSource;
+    }
+    if (videoDeviceId !== undefined) next.videoDeviceId = String(videoDeviceId ?? '').slice(0, 256);
+    if (rtmpPort !== undefined) {
+      if (!isPort(rtmpPort)) throw new Error(`Puerto RTMP no válido: ${rtmpPort}`);
+      next.rtmpPort = Number(rtmpPort);
     }
     if (obsHost !== undefined) {
       const host = String(obsHost ?? '').trim() || DEFAULT_SETTINGS.obsHost;
@@ -191,6 +284,7 @@ export class StudioController {
     this.#settings = next;
     this.#persist(this.#settings, passwordChanged ? this.#obsPassword : undefined);
 
+    this.#tenveo.setMode(next.connectionMode);
     this.#tenveo.setEthernetIp(next.ethernetIp);
     this.#tenveo.retry();
     this.#obs.configure({ host: next.obsHost, port: next.obsPort, password: this.#obsPassword });

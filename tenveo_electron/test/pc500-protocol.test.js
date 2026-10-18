@@ -98,3 +98,62 @@ test('nombres de cámaras', () => {
   assert.equal(cameraLabel('aux'), 'AUX (MEDIA / NDI)');
   assert.equal(cameraLabel('7'), 'CAMERA 7');
 });
+
+// --- Botones del panel, datos del equipo y transmisión ---
+
+import {
+  buttonLight,
+  cmdButton,
+  cmdStreamTarget,
+  isIPv4,
+  isPanelButton,
+  streamButtonForSlot,
+} from '../src/core/pc500-protocol.js';
+
+test('guarda la luz de los botones del panel y los datos del equipo', () => {
+  const state = applyDeviceUpdate(createSwitcherState(), {
+    stream_2: 'active-red',
+    dsk: 'flash-green',
+    logo1: 'none-white',
+    sys_ip: '192.168.1.188',
+    system_version: 'V1.2.3',
+    stream_time: '00:01:05',
+    record_time: 12,
+  });
+  assert.equal(state.buttons.stream_2, 'active-red');
+  assert.deepEqual(buttonLight(state.buttons.stream_2), { on: true, color: 'red', flash: false });
+  assert.deepEqual(buttonLight(state.buttons.dsk), { on: true, color: 'green', flash: true });
+  assert.equal(buttonLight(state.buttons.logo1).on, false);
+  assert.deepEqual(state.device, { ip: '192.168.1.188', version: 'V1.2.3', streamTime: '00:01:05', recordTime: '12' });
+});
+
+test('una IP mal formada del equipo se ignora', () => {
+  const state = applyDeviceUpdate(createSwitcherState(), { sys_ip: '999.1.1.1' });
+  assert.equal(state.device.ip, '');
+  assert.equal(isIPv4('10.0.0.1'), true);
+  assert.equal(isIPv4('10.0.0'), false);
+});
+
+test('los botones del panel se mandan como {id: 1} y solo los conocidos', () => {
+  assert.deepEqual(cmdButton('pip1-on-air'), { 'pip1-on-air': 1 });
+  assert.deepEqual(cmdButton('stream_2'), { stream_2: 1 });
+  assert.throws(() => cmdButton('sys_ip'), RangeError);
+  assert.equal(isPanelButton('rec'), true);
+  assert.equal(isPanelButton('pvw-1'), false);
+  assert.equal(streamButtonForSlot(1), 'stream');
+  assert.equal(streamButtonForSlot(2), 'stream_2');
+  assert.throws(() => streamButtonForSlot(3), RangeError);
+});
+
+test('arma el destino de transmisión conservando fps y tasa de bits', () => {
+  assert.deepEqual(cmdStreamTarget(2, 'rtmp://192.168.1.20:1935/live', 'tenveo_1', { stream_fps_index: 1, stream_bitrate: 4000 }), {
+    'stream-2-server': 'rtmp://192.168.1.20:1935/live',
+    'stream-2-key': 'tenveo_1',
+    stream_fps_index: 1,
+    stream_bitrate: 4000,
+  });
+  assert.deepEqual(cmdStreamTarget(1, 'rtmp://a/live', 'k'), { 'stream-1-server': 'rtmp://a/live', 'stream-1-key': 'k' });
+  assert.throws(() => cmdStreamTarget(2, 'http://x', 'k'), /Servidor RTMP no válido/);
+  assert.throws(() => cmdStreamTarget(2, 'rtmp://x/live', 'con espacio'), /Clave de transmisión no válida/);
+  assert.throws(() => cmdStreamTarget(5, 'rtmp://x/live', 'k'), RangeError);
+});

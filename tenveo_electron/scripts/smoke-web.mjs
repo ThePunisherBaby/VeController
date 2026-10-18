@@ -75,14 +75,14 @@ const checks = [
   ['el servidor web respondió', up],
   ['la página terminó sin errores', code === 0],
   ['corrió en modo navegador', summary?.platform === 'browser'],
-  ['se conectó al PC500', /^PC500: USB/.test(summary?.hardware ?? '')],
-  ['se conectó a OBS', summary?.obs === 'LINKED'],
-  ['CAM 4 quedó al aire', summary?.pgm === 'CAMERA 4 (SDI 2)'],
+  ['se conectó al PC500', summary?.hardware === 'USB'],
+  ['se conectó a OBS', summary?.obs === 'Conectado'],
+  ['CAM 4 quedó al aire', summary?.pgm === 'CAM 4 · SDI 2'],
   ['SYNC OBS marcó la escena Cam 4', summary?.currentScene === 'Cam 4'],
 ];
 if (demo) {
   checks.push(
-    ['usó los simuladores de la página', /simulador/.test(summary?.hardware ?? '')],
+    ['usó los simuladores de la página', /simulador/.test(summary?.hardwareTitle ?? '')],
     ['muestra la etiqueta DEMO', summary?.demoTag === true],
     ['no tocó los simuladores por red', pc500.received.length === 0],
   );

@@ -1,23 +1,35 @@
 // Conexión WebSocket con el Tenveo PC500.
 //
-// Prueba primero el puente USB (adb forward a 127.0.0.1:8089) y después la IP
-// Ethernet, si hay una configurada. Si la conexión se cae, vuelve a intentar
-// sin olvidar la IP Ethernet.
+// Rutas: puente USB (adb forward a 127.0.0.1:8089) e IP Ethernet. El modo
+// "auto" prueba USB y después la red; "usb" y "network" usan solo una ruta.
+// Si la conexión se cae, vuelve a intentar sin olvidar la IP.
+//
+// Optimizaciones de red:
+//   - Latido con ping de WebSocket (si la implementación lo permite, como en
+//     el proceso principal con la librería ws): mide la latencia y detecta una
+//     conexión muerta en segundos en vez de esperar al sistema operativo.
+//   - Controles continuos (T-Bar y volúmenes): si la red va lenta, se manda
+//     solo el último valor y nunca se acumula un atraso.
 
 import { Emitter } from './emitter.js';
 import {
   applyDeviceUpdate,
+  buttonLight,
   clamp01,
   cmdAuto,
+  cmdButton,
   cmdChannelOn,
   cmdCut,
   cmdFtb,
   cmdSelectPreview,
+  cmdStreamTarget,
   cmdTbar,
   cmdVolume,
   createSwitcherState,
   isChannelMuted,
 } from './pc500-protocol.js';
+
+export const CONNECTION_MODES = Object.freeze(['auto', 'usb', 'network']);
 
 const DEFAULTS = Object.freeze({
   usbUrl: 'ws://127.0.0.1:8089',
@@ -25,6 +37,10 @@ const DEFAULTS = Object.freeze({
   retryMs: 4000,
   connectTimeoutMs: 2000,
   switchLiveDelayMs: 150,
+  heartbeatMs: 2000,
+  heartbeatTimeoutMs: 6000,
+  maxBufferedBytes: 8 * 1024,
+  flushMs: 16,
 });
 
 const OPEN = 1;
@@ -54,12 +70,19 @@ export class TenveoService {
   #emitter = new Emitter();
   #retryTimer = null;
   #connecting = false;
+  #retryRequested = false;
   #running = false;
   #ethernetIp = '';
+  #mode = 'auto';
+  #heartbeat = null;
+  #lastMessageAt = 0;
+  #pendingLatest = new Map();
+  #flushTimer = null;
 
   constructor(options = {}) {
     this.#options = { ...DEFAULTS, ...options };
     this.#WebSocket = options.WebSocketImpl ?? globalThis.WebSocket;
+    if (options.mode) this.#mode = CONNECTION_MODES.includes(options.mode) ? options.mode : 'auto';
   }
 
   get state() {
@@ -68,6 +91,10 @@ export class TenveoService {
 
   get ethernetIp() {
     return this.#ethernetIp;
+  }
+
+  get mode() {
+    return this.#mode;
   }
 
   get isConnected() {
@@ -88,62 +115,102 @@ export class TenveoService {
     this.#running = false;
     clearTimeout(this.#retryTimer);
     this.#retryTimer = null;
-    const ws = this.#ws;
-    this.#ws = null;
-    if (ws) safeClose(ws);
-    this.#update({ connection: 'disconnected', endpoint: '' });
+    this.#dropSocket();
+    this.#update({ connection: 'disconnected', endpoint: '', latencyMs: null });
   }
 
-  // Guarda la IP Ethernet. Si ya hay conexión por USB, se mantiene USB.
+  // Guarda la IP Ethernet. Si ya hay conexión por USB en modo auto, se mantiene USB.
   setEthernetIp(ip) {
     const next = String(ip ?? '').trim();
     const changed = next !== this.#ethernetIp;
     this.#ethernetIp = next;
     if (!this.#running) return;
-    if (changed && this.#state.connection === 'ethernet') {
-      // Cambió la IP de la conexión actual: reconectar con la nueva.
-      const ws = this.#ws;
-      this.#ws = null;
-      if (ws) safeClose(ws);
-      this.#update({ connection: 'disconnected', endpoint: '' });
-      this.retry();
-    } else if (!this.isConnected) {
-      this.retry();
-    }
+    if (changed && this.#state.connection === 'ethernet') this.#reconnectNow();
+    else if (!this.isConnected) this.retry();
   }
 
-  // Intenta conectar ya, sin esperar el próximo reintento.
+  setMode(mode) {
+    if (!CONNECTION_MODES.includes(mode)) throw new RangeError(`Modo de conexión desconocido: ${mode}`);
+    if (mode === this.#mode) return;
+    this.#mode = mode;
+    if (!this.#running) return;
+    if (this.isConnected && !this.#routeAllowed()) this.#reconnectNow();
+    else if (!this.isConnected) this.retry();
+  }
+
+  #routeAllowed(connection = this.#state.connection) {
+    if (connection === 'usb') return this.#mode !== 'network';
+    if (connection === 'ethernet') return this.#mode !== 'usb';
+    return true;
+  }
+
+  // Intenta conectar ya, sin esperar el próximo reintento. Si hay un intento
+  // en curso, se repite apenas termine: un cambio de modo o de IP en ese
+  // instante no debe perderse.
   retry() {
     if (!this.#running) return;
     clearTimeout(this.#retryTimer);
     this.#retryTimer = null;
+    if (this.#connecting) {
+      this.#retryRequested = true;
+      return;
+    }
     this.#connectLoop();
+  }
+
+  #reconnectNow() {
+    this.#dropSocket();
+    this.#update({ connection: 'disconnected', endpoint: '', latencyMs: null });
+    this.retry();
+  }
+
+  #dropSocket() {
+    this.#stopHeartbeat();
+    clearTimeout(this.#flushTimer);
+    this.#flushTimer = null;
+    this.#pendingLatest.clear();
+    const ws = this.#ws;
+    this.#ws = null;
+    if (ws) safeClose(ws);
   }
 
   async #connectLoop() {
     if (!this.#running || this.#connecting || this.isConnected) return;
     this.#connecting = true;
+    this.#retryRequested = false;
     this.#update({ connection: 'connecting' });
 
-    const usb = new URL(this.#options.usbUrl);
-    let ok = await this.#tryConnect(this.#options.usbUrl, 'usb', `USB (Bridge: ${usb.host})`);
+    if (this.#mode !== 'network') {
+      const usb = new URL(this.#options.usbUrl);
+      await this.#tryConnect(this.#options.usbUrl, 'usb', `USB (Bridge: ${usb.host})`);
+    }
 
     const ip = this.#ethernetIp;
-    if (!ok && ip && this.#running) {
-      if (isValidHost(ip)) {
+    if (!this.isConnected && this.#mode !== 'usb' && this.#running && !this.#retryRequested) {
+      if (!ip) {
+        if (this.#mode === 'network') this.#update({ lastError: 'Escribe la IP del PC500 o búscalo en la red.' });
+      } else if (isValidHost(ip)) {
         const port = this.#options.ethernetPort;
-        ok = await this.#tryConnect(`ws://${hostForUrl(ip)}:${port}`, 'ethernet', `Ethernet LAN (${ip}:${port})`);
+        await this.#tryConnect(`ws://${hostForUrl(ip)}:${port}`, 'ethernet', `Ethernet LAN (${ip}:${port})`);
       } else {
         this.#update({ lastError: `IP no válida: ${ip}` });
       }
     }
 
     this.#connecting = false;
+    // Se decide con el estado real: la conexión pudo cambiar mientras se esperaba.
     if (!this.#running) return;
-    if (!ok) {
-      this.#update({ connection: 'disconnected', endpoint: '' });
-      this.#scheduleRetry();
+    if (this.isConnected) {
+      if (!this.#routeAllowed()) this.#reconnectNow();
+      return;
     }
+    if (this.#retryRequested) {
+      this.#retryRequested = false;
+      queueMicrotask(() => this.#connectLoop());
+      return;
+    }
+    this.#update({ connection: 'disconnected', endpoint: '' });
+    this.#scheduleRetry();
   }
 
   #tryConnect(url, type, label) {
@@ -184,17 +251,64 @@ export class TenveoService {
 
   #attach(ws, type, label) {
     this.#ws = ws;
+    this.#lastMessageAt = Date.now();
     ws.onmessage = (event) => this.#onMessage(event.data);
     ws.onerror = () => {};
     ws.onclose = () => this.#onDisconnected(ws);
-    this.#update({ connection: type, endpoint: label, lastError: null });
+    this.#update({ connection: type, endpoint: label, lastError: null, latencyMs: null });
+    this.#startHeartbeat(ws);
+  }
+
+  // Solo si la implementación de WebSocket permite mandar ping (librería ws).
+  #startHeartbeat(ws) {
+    if (typeof ws.ping !== 'function' || typeof ws.on !== 'function') return;
+    let sentAt = 0;
+    let lastPong = 0;
+    let average = null;
+    ws.on('pong', () => {
+      const now = Date.now();
+      lastPong = now;
+      if (sentAt) {
+        const rtt = now - sentAt;
+        average = average === null ? rtt : average * 0.7 + rtt * 0.3;
+        this.#update({ latencyMs: Math.round(average) });
+      }
+    });
+
+    const beat = () => {
+      if (ws !== this.#ws) return;
+      // El corte solo se activa si el equipo ya respondió algún ping: así un
+      // servidor que no contesta pings nunca pierde una conexión sana.
+      const quietFor = Date.now() - Math.max(lastPong, this.#lastMessageAt);
+      if (lastPong && quietFor > this.#options.heartbeatTimeoutMs) {
+        this.#update({ lastError: 'El PC500 dejó de responder. Reconectando…' });
+        if (typeof ws.terminate === 'function') ws.terminate();
+        else safeClose(ws);
+        return;
+      }
+      sentAt = Date.now();
+      try {
+        ws.ping();
+      } catch {
+        // Si el socket se cerró, el evento close se encarga.
+      }
+    };
+    beat();
+    this.#heartbeat = setInterval(beat, this.#options.heartbeatMs);
+  }
+
+  #stopHeartbeat() {
+    clearInterval(this.#heartbeat);
+    this.#heartbeat = null;
   }
 
   #onMessage(data) {
-    if (typeof data !== 'string') return;
+    this.#lastMessageAt = Date.now();
+    const text = typeof data === 'string' ? data : data instanceof Uint8Array ? new TextDecoder().decode(data) : null;
+    if (text === null) return;
     let parsed;
     try {
-      parsed = JSON.parse(data);
+      parsed = JSON.parse(text);
     } catch {
       return;
     }
@@ -204,11 +318,13 @@ export class TenveoService {
 
   #onDisconnected(ws) {
     if (ws !== this.#ws) return;
+    this.#stopHeartbeat();
+    this.#pendingLatest.clear();
     this.#ws = null;
     if (!this.#running) return;
-    this.#update({ connection: 'disconnected', endpoint: '' });
+    this.#update({ connection: 'disconnected', endpoint: '', latencyMs: null });
     // Primer intento inmediato. Si falla, el ciclo programa los siguientes.
-    queueMicrotask(() => this.#connectLoop());
+    queueMicrotask(() => this.retry());
   }
 
   #scheduleRetry() {
@@ -228,14 +344,64 @@ export class TenveoService {
     this.#emitter.emit(next);
   }
 
-  // --- Comandos ---
+  // --- Envío ---
 
-  send(command) {
+  #socketReady() {
     const ws = this.#ws;
-    if (!ws || !this.isConnected || ws.readyState !== OPEN) return false;
+    return ws && this.isConnected && ws.readyState === OPEN ? ws : null;
+  }
+
+  #congested(ws) {
+    return (ws.bufferedAmount ?? 0) > this.#options.maxBufferedBytes;
+  }
+
+  // Comando puntual (botones). Antes manda lo pendiente para respetar el orden.
+  send(command) {
+    const ws = this.#socketReady();
+    if (!ws) return false;
+    this.#flushLatest(true);
     ws.send(JSON.stringify(command));
     return true;
   }
+
+  // Control continuo: si hay congestión, guarda solo el último valor por clave.
+  #sendLatest(key, command) {
+    const ws = this.#socketReady();
+    if (!ws) return false;
+    if (this.#pendingLatest.size === 0 && !this.#congested(ws)) {
+      ws.send(JSON.stringify(command));
+      return true;
+    }
+    this.#pendingLatest.delete(key);
+    this.#pendingLatest.set(key, command);
+    this.#scheduleFlush();
+    return true;
+  }
+
+  #scheduleFlush() {
+    if (this.#flushTimer) return;
+    this.#flushTimer = setTimeout(() => {
+      this.#flushTimer = null;
+      this.#flushLatest(false);
+    }, this.#options.flushMs);
+  }
+
+  #flushLatest(force) {
+    if (this.#pendingLatest.size === 0) return;
+    const ws = this.#socketReady();
+    if (!ws) {
+      this.#pendingLatest.clear();
+      return;
+    }
+    if (!force && this.#congested(ws)) {
+      this.#scheduleFlush();
+      return;
+    }
+    for (const command of this.#pendingLatest.values()) ws.send(JSON.stringify(command));
+    this.#pendingLatest.clear();
+  }
+
+  // --- Comandos ---
 
   selectPreview(cam) {
     return this.send(cmdSelectPreview(cam));
@@ -260,11 +426,23 @@ export class TenveoService {
     return ok;
   }
 
+  pressButton(id) {
+    return this.send(cmdButton(id));
+  }
+
+  isButtonOn(id) {
+    return buttonLight(this.#state.buttons[id]).on;
+  }
+
+  setStreamTarget(slot, server, key) {
+    return this.send(cmdStreamTarget(slot, server, key, this.#state.raw));
+  }
+
   setVolume(channelId, db) {
     const command = cmdVolume(channelId, db);
-    const value = command[`audio_${channelId}_vol`];
-    this.#update({ volumes: { ...this.#state.volumes, [channelId]: value } });
-    return this.send(command);
+    const key = `audio_${channelId}_vol`;
+    this.#update({ volumes: { ...this.#state.volumes, [channelId]: command[key] } });
+    return this.#sendLatest(key, command);
   }
 
   setChannelOn(channelId, on) {
@@ -281,6 +459,6 @@ export class TenveoService {
   setTbar(position) {
     const pos = clamp01(position);
     this.#update({ tbar: pos });
-    return this.send(cmdTbar(pos));
+    return this.#sendLatest('putter', cmdTbar(pos));
   }
 }

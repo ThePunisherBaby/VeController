@@ -4,8 +4,8 @@
 import { WebSocketServer } from 'ws';
 import { createPc500Simulator } from '../src/core/simulators.js';
 
-export async function startMockPc500({ port = 0, host = '127.0.0.1', autoDelayMs = 600 } = {}) {
-  const simulator = createPc500Simulator({ autoDelayMs });
+export async function startMockPc500({ port = 0, host = '127.0.0.1', autoDelayMs = 600, ip } = {}) {
+  const simulator = createPc500Simulator({ autoDelayMs, ip });
   const wss = new WebSocketServer({ port, host });
   await new Promise((resolve, reject) => {
     wss.once('listening', resolve);
@@ -24,6 +24,8 @@ export async function startMockPc500({ port = 0, host = '127.0.0.1', autoDelayMs
     port: wss.address().port,
     state: simulator.state,
     received: simulator.received,
+    // Conexiones abiertas del lado del simulador, para simular cortes de red.
+    clients: () => [...wss.clients],
     close: () =>
       new Promise((resolve) => {
         for (const client of wss.clients) client.terminate();

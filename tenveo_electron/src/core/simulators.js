@@ -4,8 +4,10 @@
 // original; no es el firmware real.
 
 import { obsAuthString } from './obs-auth.js';
+import { PANEL_BUTTONS } from './pc500-protocol.js';
 
 const CAMS = ['1', '2', '3', '4', 'aux'];
+const PANEL_BUTTON_IDS = new Set(PANEL_BUTTONS.map((b) => b.id));
 const VOLUME_CHANNELS = ['pgm', 'hp', 'in1', 'in2', 'in3', 'in4', 'in5', 'mic1', 'mic2'];
 const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
 
@@ -20,7 +22,7 @@ function parse(text) {
 
 // --- PC500 ---
 
-export function createPc500Simulator({ autoDelayMs = 600 } = {}) {
+export function createPc500Simulator({ autoDelayMs = 600, ip = '192.168.1.188' } = {}) {
   const state = {
     pgm: '1',
     pvw: '2',
@@ -32,6 +34,8 @@ export function createPc500Simulator({ autoDelayMs = 600 } = {}) {
     vol: { pgm: -6, hp: -10, in1: -12, in2: -8, in3: -20, in4: -60, in5: -60, mic1: -3, mic2: -60 },
     on: { pgm: 1, mic1: 1, mic2: 0 },
     mode: { in1: 1, in2: 1, in3: 2, in4: 0, in5: 0 },
+    buttons: {},
+    streams: {},
   };
   const received = [];
   const sessions = new Set();
@@ -43,8 +47,13 @@ export function createPc500Simulator({ autoDelayMs = 600 } = {}) {
     auto: state.auto ? 'active-white' : 'none-white',
     ftb: state.ftb ? 'active-red' : 'none-red',
   });
+  const buttonClass = (id) => (state.buttons[id] ? (id === 'stream' || id === 'stream_2' || id === 'rec' ? 'active-red' : 'active-green') : 'none-white');
   const fullState = () => ({
     system_version: 'SIMULADOR PC500',
+    sys_ip: ip,
+    stream_fps_index: 1,
+    stream_bitrate: 4000,
+    ...Object.fromEntries([...PANEL_BUTTON_IDS].map((id) => [id, buttonClass(id)])),
     ...busState(),
     ...flags(),
     ...Object.fromEntries(VOLUME_CHANNELS.map((ch) => [`audio_${ch}_vol`, state.vol[ch]])),
@@ -63,6 +72,16 @@ export function createPc500Simulator({ autoDelayMs = 600 } = {}) {
   };
 
   function handle(key, value) {
+    if (PANEL_BUTTON_IDS.has(key) && value === 1) {
+      state.buttons[key] = !state.buttons[key];
+      broadcast({ [key]: buttonClass(key) });
+      return;
+    }
+    const stream = /^stream-([12])-(server|key)$/.exec(key);
+    if (stream && typeof value === 'string') {
+      state.streams[`${stream[1]}-${stream[2]}`] = value;
+      return;
+    }
     if (key.startsWith('pvw-')) {
       const cam = key.slice(4);
       if (CAMS.includes(cam) && value === 1) {
