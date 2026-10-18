@@ -1,7 +1,7 @@
 {
   "name": "tenveo-studio",
   "productName": "Tenveo Studio",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Consola para controlar el switcher Tenveo PC500 y OBS Studio desde la Mac",
   "author": "ThePunisherBaby",
   "private": true,
@@ -15,6 +15,7 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:web": "node scripts/smoke-web.mjs",
     "smoke:video": "node scripts/smoke-video.mjs",
+    "smoke:ui": "node scripts/smoke-ui.mjs",
     "check-device": "node scripts/check-device.mjs",
     "prepare-adb": "node scripts/prepare-adb.mjs",
     "dist": "node scripts/prepare-adb.mjs && electron-builder --mac --universal",

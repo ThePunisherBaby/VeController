@@ -8,12 +8,15 @@ import { isValidHost } from './tenveo-service.js';
 
 // Todo va por red: la IP del PC500 (o su IPv6 de enlace local por cable
 // directo) y la conexión con OBS. El video siempre lo toma la app del
-// servidor interno del PC500.
+// servidor interno del PC500. La apariencia sigue al sistema salvo que se fije.
+export const APPEARANCES = Object.freeze(['system', 'dark', 'light']);
+
 export const DEFAULT_SETTINGS = Object.freeze({
   ethernetIp: '',
   obsHost: '127.0.0.1',
   obsPort: 4455,
   syncWithObs: true,
+  appearance: 'system',
 });
 
 function isPort(value) {
@@ -34,6 +37,7 @@ export function normalizeSettings(input = {}) {
   }
   if (isPort(input.obsPort)) settings.obsPort = Number(input.obsPort);
   if (typeof input.syncWithObs === 'boolean') settings.syncWithObs = input.syncWithObs;
+  if (APPEARANCES.includes(input.appearance)) settings.appearance = input.appearance;
   return settings;
 }
 
@@ -63,6 +67,11 @@ function requireButton(id) {
   return String(id);
 }
 
+function requireAppearance(value) {
+  if (!APPEARANCES.includes(value)) throw new RangeError(`Apariencia desconocida: ${value}`);
+  return value;
+}
+
 export class StudioController {
   #tenveo;
   #obs;
@@ -84,6 +93,7 @@ export class StudioController {
     toggleMute: (channel) => this.#tenveo.toggleMute(requireChannel(channel)),
     pressButton: (id) => this.#tenveo.pressButton(requireButton(id)),
     toggleObsSync: () => this.#updateSettings({ syncWithObs: !this.#settings.syncWithObs }),
+    setAppearance: (value) => this.#updateSettings({ appearance: requireAppearance(value) }),
     obsToggleStream: () => this.#obs.toggleStream(),
     obsToggleRecord: () => this.#obs.toggleRecord(),
     obsToggleVirtualCam: () => this.#obs.toggleVirtualCam(),

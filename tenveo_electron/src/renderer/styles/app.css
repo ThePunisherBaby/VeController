@@ -1,31 +1,168 @@
-/* Tenveo Studio: interfaz minimalista para estudio.
-   Superficies neutras, líneas finas y color solo donde significa algo:
-   rojo = al aire (PGM), verde = preview (PVW), ámbar = transición. */
+/* Tenveo Studio · sistema de diseño.
+   Sigue las Human Interface Guidelines de Apple (sistema 26): colores
+   semánticos con variantes clara, oscura y de alto contraste; la tipografía
+   del sistema; geometría concéntrica; Liquid Glass solo en la capa de
+   controles que flota sobre el contenido, y movimiento con springs.
+   La especificación completa está en DISENO.md. */
+
+/* ============================================================
+   Tokens
+   ============================================================ */
+
 :root {
-  color-scheme: dark;
-  --bg: #0b0c0f;
-  --panel: #111317;
-  --panel-2: #16191e;
-  --raised: #1c1f25;
-  --raised-2: #23272e;
-  --line: rgba(255, 255, 255, 0.07);
-  --line-strong: rgba(255, 255, 255, 0.13);
-  --text: #eceef2;
-  --text-2: #a1a8b3;
-  --text-3: #686f7b;
-  --pgm: #ff453a;
-  --pgm-dim: rgba(255, 69, 58, 0.16);
-  --pvw: #30d158;
-  --pvw-dim: rgba(48, 209, 88, 0.16);
-  --amber: #ffb340;
-  --accent: #0a84ff;
-  --obs: #bf5af2;
-  --radius: 12px;
-  --radius-sm: 8px;
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  font-family: var(--font);
-  font-size: 13px;
+  color-scheme: light dark;
+
+  /* Neutros: fondos agrupados, etiquetas y rellenos del HIG. */
+  --bg: light-dark(#f2f2f7, #000000);
+  --card: light-dark(#ffffff, #1c1c1e);
+  --key: light-dark(#ececf0, #2c2c2e);
+  --key-hover: light-dark(#e3e3e8, #3a3a3c);
+  --key-press: light-dark(#d6d6dc, #48484a);
+  --key-sheen: light-dark(rgb(255 255 255 / 0.7), rgb(255 255 255 / 0.05));
+  --key-border: transparent;
+  --label: light-dark(#000000, #ffffff);
+  /* El secundario de Apple en claro (0,6) da 3,4:1 sobre blanco: aquí 0,78 da 5,2:1. */
+  --label-2: light-dark(rgb(60 60 67 / 0.78), rgb(235 235 245 / 0.6));
+  --label-3: light-dark(rgb(60 60 67 / 0.45), rgb(235 235 245 / 0.3));
+  --separator: light-dark(rgb(60 60 67 / 0.16), rgb(84 84 88 / 0.5));
+  --hairline: light-dark(rgb(0 0 0 / 0.05), rgb(255 255 255 / 0.07));
+  --fill: light-dark(rgb(120 120 128 / 0.2), rgb(120 120 128 / 0.36));
+  --fill-2: light-dark(rgb(120 120 128 / 0.16), rgb(120 120 128 / 0.32));
+  --fill-3: light-dark(rgb(118 118 128 / 0.12), rgb(118 118 128 / 0.24));
+  --fill-4: light-dark(rgb(116 116 128 / 0.08), rgb(118 118 128 / 0.18));
+  --screen: #000000;
+
+  /* Colores del sistema 26 (HIG, Color). */
+  --red: light-dark(#ff383c, #ff4245);
+  --green: light-dark(#34c759, #30d158);
+  --orange: light-dark(#ff8d28, #ff9230);
+  --yellow: light-dark(#ffcc00, #ffd600);
+  --blue: light-dark(#0088ff, #0091ff);
+  --purple: light-dark(#cb30e0, #db34f2);
+  /* Las mismas familias como texto sobre una tarjeta: 4,5:1 o más. */
+  --red-text: light-dark(#e9152d, #ff4245);
+  --green-text: light-dark(#008932, #30d158);
+  --orange-text: light-dark(#c55300, #ff9230);
+  --blue-text: light-dark(#1e6ef4, #0091ff);
+  --purple-text: light-dark(#b02fc2, #db34f2);
+
+  /* Tally y estados encendidos: relleno y texto encima, 4,5:1 o más. */
+  --pgm: #e9152d;
+  --on-pgm: #ffffff;
+  --pvw: var(--green);
+  --on-pvw: #052e12;
+  --trans: var(--orange);
+  --on-trans: #2b1700;
+  --accent-fill: #1e6ef4;
+  --on-accent: #ffffff;
+  --lit-red-text: light-dark(#b5001a, #ffb3b5);
+  --lit-green-text: light-dark(#006b27, #a6f0b8);
+  --lit-yellow-text: light-dark(#7a4a00, #ffe08a);
+  --lit-blue-text: light-dark(#0b4fc4, #b3d7ff);
+
+  /* Tipografía del sistema (SF Pro en la Mac) con el tracking de SF por tamaño. */
+  --font: system-ui, -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --track-10: 0.12px;
+  --track-11: 0.06px;
+  --track-12: 0px;
+  --track-13: -0.08px;
+  --track-14: -0.15px;
+  --track-17: -0.43px;
+
+  /* Espacio (base 4) y geometría concéntrica: radio interno = externo − padding. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --radius-outer: 22px;
+  --card-pad: 12px;
+  --radius-inner: calc(var(--radius-outer) - var(--card-pad));
+  --toolbar-h: 52px;
+  --control-h: 32px;
+
+  /* Materiales: vidrio de la capa de controles y elevación. */
+  --glass-fill: light-dark(rgb(255 255 255 / 0.72), rgb(255 255 255 / 0.075));
+  --glass-fill-thick: light-dark(rgb(250 250 252 / 0.84), rgb(36 36 38 / 0.82));
+  --glass-solid: light-dark(#f9f9fb, #28282a);
+  --glass-blur-thick: 30px;
+  --glass-rim-top: light-dark(rgb(255 255 255 / 0.95), rgb(255 255 255 / 0.24));
+  --glass-rim-bottom: light-dark(rgb(255 255 255 / 0.4), rgb(255 255 255 / 0.05));
+  --glass-edge: light-dark(rgb(0 0 0 / 0.08), rgb(0 0 0 / 0.6));
+  --glow: light-dark(rgb(0 0 0 / 0.07), rgb(255 255 255 / 0.3));
+  --shadow-1: light-dark(rgb(0 0 0 / 0.06), rgb(0 0 0 / 0.4));
+  --shadow-2: light-dark(rgb(0 0 0 / 0.14), rgb(0 0 0 / 0.6));
+  --elevation-1: 0 1px 2px var(--shadow-1);
+  --elevation-float: 0 12px 32px var(--shadow-2), 0 2px 8px var(--shadow-1);
+  --dim: light-dark(rgb(0 0 0 / 0.2), rgb(0 0 0 / 0.5));
+
+  /* Movimiento: springs de Apple (duración perceptual, rebote) como curvas CSS,
+     generadas con springs.js. La duración es hasta que el spring se asienta. */
+  --ease-smooth: linear(0, 0.0229, 0.0789, 0.1533, 0.2362, 0.3209, 0.4031, 0.4803, 0.5511, 0.6147, 0.6712, 0.7208, 0.7639, 0.8011, 0.833, 0.8602, 0.8833, 0.9028, 0.9192, 0.933, 0.9445, 0.9542, 0.9622, 0.9688, 0.9744, 0.9789, 0.9827, 0.9858, 0.9884, 0.9905, 0.9922, 0.9936, 0.9948, 0.9958, 0.9966, 0.9972, 0.9977, 0.9981, 0.9985, 0.9988, 1);
+  --ease-snappy: linear(0, 0.0212, 0.0748, 0.1486, 0.2335, 0.3225, 0.4109, 0.4953, 0.5736, 0.6446, 0.7076, 0.7628, 0.8102, 0.8505, 0.8842, 0.9121, 0.9348, 0.953, 0.9675, 0.9787, 0.9873, 0.9938, 0.9984, 1.0017, 1.0039, 1.0053, 1.006, 1.0063, 1.0062, 1.0059, 1.0055, 1.0049, 1.0044, 1.0038, 1.0033, 1.0028, 1.0023, 1.0019, 1.0016, 1.0013, 1);
+  --dur-smooth: 735ms; /* (0,5 s, rebote 0) */
+  --dur-snappy: 697ms; /* (0,5 s, rebote 0,15) */
+  --dur-micro: 441ms; /* (0,3 s, rebote 0), curva smooth */
+  --dur-micro-snappy: 419ms; /* (0,3 s, rebote 0,15), curva snappy */
+  --dur-fade: 200ms;
+  --motion: 1; /* 0 con Reducir movimiento: sin desplazamientos ni escalas */
 }
+
+:root[data-appearance="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-appearance="light"] {
+  color-scheme: light;
+}
+
+/* Más contraste: variantes de alto contraste del HIG, bordes visibles y
+   superficies predominantemente blancas o negras. */
+@media (prefers-contrast: more) {
+  :root {
+    --card: light-dark(#ffffff, #000000);
+    --key: light-dark(#ffffff, #1c1c1e);
+    --key-hover: light-dark(#f2f2f7, #2c2c2e);
+    --key-press: light-dark(#e5e5ea, #3a3a3c);
+    --key-border: light-dark(rgb(0 0 0 / 0.6), rgb(255 255 255 / 0.6));
+    --label-2: light-dark(rgb(60 60 67 / 0.92), rgb(235 235 245 / 0.85));
+    --label-3: light-dark(rgb(60 60 67 / 0.7), rgb(235 235 245 / 0.6));
+    --separator: light-dark(rgb(0 0 0 / 0.5), rgb(255 255 255 / 0.5));
+    --hairline: light-dark(rgb(0 0 0 / 0.6), rgb(255 255 255 / 0.6));
+    --red: light-dark(#e9152d, #ff6165);
+    --green: light-dark(#008932, #4ad968);
+    --orange: light-dark(#c55300, #ffa056);
+    --blue: light-dark(#1e6ef4, #5cb8ff);
+    --purple: light-dark(#b02fc2, #ea8dff);
+    --red-text: light-dark(#c7001b, #ff6165);
+    --green-text: light-dark(#006b27, #4ad968);
+    --orange-text: light-dark(#a34500, #ffa056);
+    --blue-text: light-dark(#0b4fc4, #5cb8ff);
+    --purple-text: light-dark(#8f1fa0, #ea8dff);
+    --pgm: #c7001b;
+    --on-pvw: light-dark(#ffffff, #052e12);
+    --on-trans: light-dark(#ffffff, #2b1700);
+    --glass-fill: light-dark(#ffffff, #1c1c1e);
+    --glass-fill-thick: light-dark(#ffffff, #1c1c1e);
+    --glass-solid: light-dark(#ffffff, #1c1c1e);
+    --glass-edge: light-dark(rgb(0 0 0 / 0.6), rgb(255 255 255 / 0.6));
+  }
+}
+
+/* Transparencia reducida: el vidrio pasa a ser una superficie sólida. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-fill: light-dark(#ffffff, #2c2c2e);
+    --glass-fill-thick: light-dark(#f9f9fb, #2c2c2e);
+    --glass-solid: light-dark(#f9f9fb, #2c2c2e);
+  }
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
 
 *,
 *::before,
@@ -38,13 +175,24 @@ body {
   margin: 0;
   height: 100%;
   background: var(--bg);
-  color: var(--text);
+  color: var(--label);
 }
 
 body {
   overflow: hidden;
+  font: 400 13px/16px var(--font);
+  letter-spacing: var(--track-13);
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   user-select: none;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font: inherit;
 }
 
 button,
@@ -52,18 +200,17 @@ select,
 input {
   font: inherit;
   color: inherit;
+  letter-spacing: inherit;
 }
 
+/* En la Mac los botones usan la flecha, no la mano de los enlaces. */
 button {
-  cursor: pointer;
+  cursor: default;
 }
 
-button:focus-visible,
-select:focus-visible,
-input:focus-visible,
-.tbar-track:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--blue) 60%, transparent);
+  outline-offset: 1px;
 }
 
 [hidden] {
@@ -78,8 +225,8 @@ input:focus-visible,
 }
 
 .icon {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   flex: none;
 }
 
@@ -93,181 +240,284 @@ input:focus-visible,
   height: 100vh;
 }
 
-/* --- Barra superior --- */
+.card {
+  border-radius: var(--radius-outer);
+  corner-shape: squircle;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
 
-.topbar {
+/* ============================================================
+   Materiales: Liquid Glass de la capa de controles
+   ============================================================ */
+
+/* Medido en esta Mac (bench-video): cualquier backdrop-filter en pantalla
+   impide que macOS presente el video como una capa propia, y la GPU compone
+   toda la ventana en cada cuadro (latencia de 117 ms a 365 ms o más, cuadros
+   perdidos). Por eso el vidrio fijo (barra, chips sobre el video) es relleno
+   translúcido, borde especular y sombra, sin muestrear el fondo: sobre un fondo
+   liso se ve igual. El desenfoque real queda para el diálogo y los avisos, y
+   solo mientras no hay video (data-video en la raíz). */
+.glass {
+  position: relative;
+  background: var(--glass-fill);
+  box-shadow: var(--elevation-1), 0 0 0 0.5px var(--glass-edge);
+}
+
+/* Borde especular: más claro arriba, donde le da la luz. */
+:is(.glass, .dialog, .toast, .segmented-thumb, .screen-label, .screen-badge)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  corner-shape: inherit;
+  background: linear-gradient(180deg, var(--glass-rim-top), var(--glass-rim-bottom) 40%, transparent 62%, var(--glass-rim-bottom));
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+
+/* Al presionar, el vidrio se ilumina desde el punto del clic (app.js pone --glow-x/y). */
+:is(.capsule-btn, .icon-btn, button.status, .close-btn)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at var(--glow-x, 50%) var(--glow-y, 50%), var(--glow), transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-smooth) var(--ease-smooth);
+}
+
+:is(.capsule-btn, .icon-btn, button.status, .close-btn):active::after {
+  opacity: 1;
+  transition-duration: 80ms;
+}
+
+/* ============================================================
+   Barra de herramientas (también barra de título en la Mac)
+   ============================================================ */
+
+.toolbar {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 52px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
+  gap: var(--space-2);
+  height: var(--toolbar-h);
+  padding: 0 var(--space-3);
+  -webkit-app-region: drag;
+}
+
+/* Lugar para los semáforos de macOS, salvo en pantalla completa. */
+:root[data-platform="electron"][data-os="mac"]:not([data-fullscreen="true"]) .toolbar {
+  padding-left: 84px;
+}
+
+.toolbar :is(button, .capsule, .demo-tag) {
+  -webkit-app-region: no-drag;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 9px;
-  margin-right: 10px;
+  gap: var(--space-2);
+  margin-right: var(--space-2);
 }
 
 .brand-mark {
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  background: linear-gradient(135deg, var(--pgm) 0 50%, var(--pvw) 50% 100%);
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  corner-shape: squircle;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.28), transparent 55%),
+    linear-gradient(135deg, var(--red) 0 50%, var(--green) 50% 100%);
+  box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.18);
 }
 
 .brand-name {
-  font-size: 14px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-}
-
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--panel-2);
-  color: var(--text-2);
-  font-size: 12px;
+  font: 600 13px/16px var(--font);
+  letter-spacing: var(--track-13);
   white-space: nowrap;
 }
 
-button.pill:hover {
-  border-color: var(--line-strong);
+.capsule {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-h);
+  border-radius: 999px;
 }
 
-.pill .dot {
+.status-capsule {
+  padding: 0 2px;
+}
+
+.status {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: calc(var(--control-h) - 4px);
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--label-2);
+  font: 400 12px/1 var(--font);
+  letter-spacing: var(--track-12);
+  white-space: nowrap;
+}
+
+button.status:hover {
+  background: var(--fill-4);
+}
+
+.capsule-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--separator);
+}
+
+.status .dot {
   width: 7px;
   height: 7px;
+  flex: none;
   border-radius: 50%;
-  background: var(--amber);
+  background: var(--orange);
 }
 
-.pill:not(.is-on) .dot {
+.status:not(.is-on) .dot {
   animation: pulse 1.6s ease-in-out infinite;
 }
 
-.pill.is-on .dot {
-  background: var(--pvw);
-}
-
-.pill.is-warn .dot {
-  background: var(--pgm);
+.status.is-on .dot {
+  background: var(--green);
   animation: none;
 }
 
-.pill-label {
-  color: var(--text-3);
-  font-size: 10.5px;
-  font-weight: 650;
-  letter-spacing: 0.08em;
+.status.is-warn .dot {
+  background: var(--red);
+  animation: none;
 }
 
-.pill-text {
-  color: var(--text);
+.status-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: var(--track-11);
 }
 
-.pill-meta {
-  color: var(--text-3);
+.status-text {
+  color: var(--label);
+  font-weight: 500;
+}
+
+.status-meta {
   font-variant-numeric: tabular-nums;
 }
 
 .demo-tag {
-  padding: 5px 10px;
-  border: 1px dashed var(--amber);
-  border-radius: 999px;
-  color: var(--amber);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.output-group {
-  display: inline-flex;
-  padding: 3px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel-2);
-}
-
-.out-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   height: 26px;
-  padding: 0 11px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-2);
-  font-size: 12px;
-  font-weight: 600;
+  padding: 0 10px;
+  border: 1px dashed var(--orange);
+  border-radius: 999px;
+  color: var(--orange-text);
+  font: 600 11px/1 var(--font);
+  letter-spacing: var(--track-11);
 }
 
-.out-btn:hover {
-  color: var(--text);
-}
-
-.out-btn.is-active {
-  background: var(--pgm);
-  color: #fff;
-}
-
-.out-btn--blue.is-active {
-  background: var(--accent);
-}
-
-.ghost-btn,
-.icon-btn {
+.capsule-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 6px;
-  height: 32px;
+  height: var(--control-h);
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--label-2);
+  font: 600 12px/1 var(--font);
+  letter-spacing: var(--track-12);
+  white-space: nowrap;
+}
+
+.segment-capsule {
+  gap: 2px;
+  padding: 0 3px;
+}
+
+.segment-capsule .capsule-btn {
+  height: calc(var(--control-h) - 6px);
   padding: 0 11px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
   background: transparent;
-  color: var(--text-2);
-  font-size: 12px;
-  font-weight: 600;
+}
+
+.capsule-btn:hover {
+  color: var(--label);
+}
+
+.segment-capsule .capsule-btn:hover {
+  background: var(--fill-4);
+}
+
+.capsule-btn.is-active,
+.segment-capsule .capsule-btn.is-active {
+  background: var(--pgm);
+  color: var(--on-pgm);
+}
+
+.capsule-btn--blue.is-active,
+.segment-capsule .capsule-btn--blue.is-active {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+.sync-btn {
+  padding: 0 14px;
+  transition: scale var(--dur-micro-snappy) var(--ease-snappy);
+}
+
+.sync-btn[aria-pressed="true"] {
+  color: var(--label);
+}
+
+.sync-btn[aria-pressed="true"] .icon {
+  color: var(--purple-text);
 }
 
 .icon-btn {
-  width: 32px;
+  position: relative;
+  justify-content: center;
+  width: var(--control-h);
   padding: 0;
+  border: 0;
+  color: var(--label-2);
+  transition: scale var(--dur-micro-snappy) var(--ease-snappy);
 }
 
-.ghost-btn:hover,
 .icon-btn:hover {
-  border-color: var(--line-strong);
-  color: var(--text);
+  color: var(--label);
 }
 
-.ghost-btn[aria-pressed="true"] {
-  border-color: rgba(191, 90, 242, 0.45);
-  color: var(--text);
+/* El vidrio se expande un poco al tocarlo. */
+:is(.sync-btn, .icon-btn):active {
+  scale: calc(1 + 0.04 * var(--motion));
+  transition-duration: var(--dur-micro);
+  transition-timing-function: var(--ease-smooth);
 }
 
-.ghost-btn[aria-pressed="true"] .icon {
-  color: var(--obs);
-}
-
-/* --- Área de trabajo --- */
+/* ============================================================
+   Área de trabajo
+   ============================================================ */
 
 .workspace {
   flex: 1;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) clamp(340px, 27vw, 400px);
-  gap: 14px;
-  padding: 14px;
+  gap: var(--space-3);
+  padding: 0 var(--space-3) var(--space-3);
 }
 
 /* Los monitores se dimensionan por su ancho y la consola se queda con el resto
@@ -276,17 +526,20 @@ button.pill:hover {
   min-height: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 14px;
+  gap: var(--space-3);
 }
 
+/* ============================================================
+   Monitores: contenido, sin vidrio salvo los rótulos sobre la imagen
+   ============================================================ */
+
 /* El PGM, que lleva el video, ocupa dos tercios en 16:9. El PVW no lleva video
-   (muestra qué cámara está en Preview), así que es una tarjeta de la misma
-   altura y los rótulos quedan en la misma línea. */
+   (muestra qué cámara está en Preview): es una pantalla de la misma altura. */
 .monitors {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   align-items: stretch;
-  gap: 14px;
+  gap: var(--space-3);
 }
 
 .monitor {
@@ -296,28 +549,28 @@ button.pill:hover {
   margin: 0;
 }
 
-/* En una ventana muy baja y ancha, el 16:9 se limita por la altura y deja lugar
-   para la consola (≈ 100vh menos barra, márgenes, consola mínima y rótulo). */
-.monitor--pgm .monitor-inner {
-  width: min(100%, calc((100vh - 400px) * 16 / 9));
+.monitor--pvw {
+  --tally: var(--green);
 }
 
-.monitor--pvw .monitor-inner {
-  width: 100%;
-}
-
-.monitor--pvw .screen {
-  flex: 1;
-  aspect-ratio: auto;
+.monitor--pgm {
+  --tally: var(--red);
 }
 
 .monitor-inner {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 
+/* En una ventana muy baja y ancha, el 16:9 se limita por la altura para dejar
+   lugar a la consola (≈ 100vh menos barra, márgenes y consola mínima). */
+.monitor--pgm .monitor-inner {
+  width: min(100%, calc((100vh - 340px) * 16 / 9));
+}
+
+/* Radio común, sin squircle: un recorte que no es un óvalo obligaría a la GPU
+   a usar una máscara en cada cuadro del video. */
 .screen {
   position: relative;
   width: 100%;
@@ -326,18 +579,25 @@ button.pill:hover {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-top: 2px solid var(--tally, var(--line));
-  border-radius: var(--radius);
-  background: #050607;
+  border-radius: var(--radius-outer);
+  background: var(--screen);
+  color: #ffffff;
 }
 
-.monitor--pvw {
-  --tally: var(--pvw);
+.monitor--pvw .screen {
+  flex: 1;
+  aspect-ratio: auto;
 }
 
-.monitor--pgm {
-  --tally: var(--pgm);
+/* Anillo de tally: rojo el PGM y verde el PVW, como en un multiview. */
+.screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px var(--tally), inset 0 0 0 3px rgb(0 0 0 / 0.35);
+  pointer-events: none;
 }
 
 .screen canvas {
@@ -346,106 +606,154 @@ button.pill:hover {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  background: #000;
+  background: #000000;
+}
+
+/* El video se materializa al aparecer: sale del desenfoque. Al terminar no queda
+   ningún filtro, que costaría GPU en cada cuadro. */
+.screen canvas:not([hidden]) {
+  animation: materialize var(--dur-smooth) var(--ease-smooth) backwards;
 }
 
 .placeholder {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 16px;
+  gap: 2px;
+  padding: var(--space-4);
   text-align: center;
 }
 
 .placeholder-icon {
-  width: 34px;
-  height: 34px;
-  margin-bottom: 6px;
-  color: var(--text-3);
+  width: 36px;
+  height: 36px;
+  margin-bottom: var(--space-2);
+  color: rgb(235 235 245 / 0.3);
 }
 
 .placeholder-cam {
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font: 700 clamp(22px, 2.3vw, 40px)/1.15 var(--font);
 }
 
 .placeholder-sub {
-  color: var(--text-3);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  color: rgb(235 235 245 / 0.6);
+  font: 500 12px/15px var(--font);
+  letter-spacing: var(--track-12);
 }
 
 .placeholder-hint {
-  margin-top: 10px;
-  color: var(--text-3);
-  font-size: 11.5px;
+  margin-top: var(--space-3);
+  color: rgb(235 235 245 / 0.6);
+  font: 400 12px/15px var(--font);
+  letter-spacing: var(--track-12);
+}
+
+/* Rótulos sobre la imagen: vidrio Clear con atenuación, así el texto blanco se
+   lee aunque el video sea muy claro (≥ 4,5:1). Sin desenfoque: costaría GPU en
+   cada cuadro del video. */
+.screen-label,
+.screen-badge {
+  --glass-rim-top: rgb(255 255 255 / 0.34);
+  --glass-rim-bottom: rgb(255 255 255 / 0.07);
+  position: absolute;
+  top: var(--space-3);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.6);
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.screen-label {
+  left: var(--space-3);
+  max-width: calc(100% - 136px);
+  gap: var(--space-2);
+  padding: 0 11px 0 3px;
+  font: 500 12px/1 var(--font);
+  letter-spacing: var(--track-12);
 }
 
 .screen-badge {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.7);
-  color: var(--text);
-  font-size: 10.5px;
-  font-weight: 650;
-  letter-spacing: 0.06em;
+  right: var(--space-3);
+  gap: 6px;
+  padding: 0 11px 0 9px;
+  font: 600 11px/1 var(--font);
+  letter-spacing: var(--track-11);
+}
+
+.screen-badge::after {
+  content: "";
+  order: -1;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 30%, transparent);
+}
+
+/* El PVW no tiene insignia a la derecha: su rótulo usa todo el ancho. */
+.monitor--pvw .screen-label {
+  max-width: calc(100% - 2 * var(--space-3));
+}
+
+.screen-label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tally-tag {
+  flex: none;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font: 700 11px/1 var(--font);
+  letter-spacing: var(--track-11);
+}
+
+.tally-tag--pgm {
+  background: var(--pgm);
+  color: var(--on-pgm);
+}
+
+.tally-tag--pvw {
+  background: var(--pvw);
+  color: var(--on-pvw);
 }
 
 .screen-black {
   position: absolute;
   inset: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.82);
-  color: var(--pgm);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.2em;
+  background: rgb(0 0 0 / 0.86);
 }
 
-figcaption {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-2);
-  font-size: 12px;
+.screen-black:not([hidden]) {
+  animation: fade-in var(--dur-micro) var(--ease-smooth) backwards;
 }
 
-.tally-tag {
-  padding: 2px 7px;
-  border-radius: 5px;
-  color: #fff;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
-
-.tally-tag--pgm {
+.ftb-chip {
+  padding: 7px 14px;
+  border-radius: 999px;
   background: var(--pgm);
+  color: var(--on-pgm);
+  font: 700 12px/1 var(--font);
+  letter-spacing: var(--track-12);
 }
 
-.tally-tag--pvw {
-  background: var(--pvw);
-  color: #041b0c;
-}
-
-/* --- Consola --- */
+/* ============================================================
+   Consola
+   ============================================================ */
 
 .console {
   min-height: 0;
   display: flex;
-  gap: 18px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel);
+  gap: var(--space-4);
+  padding: var(--card-pad);
 }
 
 /* La altura que sobra se reparte entre las filas. */
@@ -455,23 +763,23 @@ figcaption {
   display: flex;
   flex-direction: column;
   justify-content: space-evenly;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .row {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--space-3);
 }
 
 .row--keyers {
   align-items: flex-start;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--separator);
 }
 
 .row--keyers .row-label {
-  padding-top: 13px;
+  padding-top: 12px;
 }
 
 .keyer-rows {
@@ -479,7 +787,24 @@ figcaption {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
+}
+
+.row-label {
+  flex: none;
+  width: 60px;
+  padding-left: var(--space-1);
+  color: var(--label-2);
+  font: 600 12px/15px var(--font);
+  letter-spacing: var(--track-12);
+}
+
+.row-label--pgm {
+  color: var(--red-text);
+}
+
+.row-label--pvw {
+  color: var(--green-text);
 }
 
 /* Cámaras y capas comparten una grilla de 7 columnas: las teclas llenan el
@@ -489,178 +814,152 @@ figcaption {
   min-width: 0;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .rows .key {
-  width: auto;
-  min-width: 0;
-  height: clamp(52px, 6.6vh, 68px);
+  height: clamp(52px, 8.4vh, 84px);
 }
 
 .rows .keys--small .key {
-  width: auto;
-  height: clamp(40px, 5.2vh, 54px);
-}
-
-.row-label {
-  flex: none;
-  width: 64px;
-  color: var(--text-3);
-  font-size: 10.5px;
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.row-label--pgm {
-  color: var(--pgm);
-}
-
-.row-label--pvw {
-  color: var(--pvw);
+  height: clamp(40px, 6vh, 60px);
+  font-size: 13px;
+  letter-spacing: var(--track-13);
 }
 
 .keys {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .keys--grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
 }
 
 .keys--grid.keys--4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-/* Sin conexión con el PC500 los controles quedan atenuados: se ven, pero
-   está claro que ahora no mandan nada. */
-html[data-connected="false"] .console,
-html[data-connected="false"] .mixer,
-html[data-connected="false"] .panel[data-panel="device"] .keys {
-  opacity: 0.45;
-}
-
+/* Teclas: capa de contenido, sólidas. El color cambia en el mismo cuadro (el
+   tally no se anima); solo la escala al presionar tiene spring. */
 .key {
+  position: relative;
+  min-width: 0;
+  height: 52px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 2px;
-  width: 78px;
-  height: 52px;
-  padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--raised);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-  transition: background-color 90ms ease, border-color 90ms ease, transform 90ms ease;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--radius-inner);
+  corner-shape: squircle;
+  background: var(--key);
+  box-shadow: inset 0 0 0 1px var(--key-border), inset 0 1px 0 var(--key-sheen);
+  color: var(--label);
+  font: 600 14px/17px var(--font);
+  letter-spacing: var(--track-14);
+  transition: scale var(--dur-micro-snappy) var(--ease-snappy);
 }
 
 .key:hover {
-  border-color: var(--line-strong);
-  background: var(--raised-2);
+  background: var(--key-hover);
 }
 
 .key:active {
-  transform: scale(0.97);
+  background: var(--key-press);
+  scale: calc(1 - 0.03 * var(--motion));
+  transition-duration: var(--dur-micro);
+  transition-timing-function: var(--ease-smooth);
 }
 
 .key-sub {
   max-width: 100%;
   overflow: hidden;
-  color: var(--text-3);
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  color: var(--label-2);
+  font: 500 10px/13px var(--font);
+  letter-spacing: var(--track-10);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.keys--small .key {
-  width: 70px;
-  height: 40px;
-  font-size: 11.5px;
-}
-
-.keys--grid .key {
-  width: auto;
-  height: 42px;
-  font-size: 11.5px;
-}
-
+/* Tally: tecla iluminada, con un halo suave como un botón con luz. */
 .key.is-program {
-  border-color: var(--pgm);
   background: var(--pgm);
-  color: #fff;
+  box-shadow: 0 0 0 1px var(--pgm), 0 6px 18px -6px var(--pgm);
+  color: var(--on-pgm);
 }
 
 .key.is-preview {
-  border-color: var(--pvw);
   background: var(--pvw);
-  color: #041b0c;
+  box-shadow: 0 6px 18px -6px var(--pvw);
+  color: var(--on-pvw);
 }
 
-.key.is-program .key-sub,
-.key.is-preview .key-sub {
+.key:is(.is-program, .is-preview) .key-sub {
   color: inherit;
-  opacity: 0.72;
 }
 
 /* Luces de los botones del panel según la clase que manda el equipo. */
 .key.light-red {
-  border-color: var(--pgm);
-  background: var(--pgm-dim);
-  color: #ffd3cf;
+  background: color-mix(in srgb, var(--red) 20%, var(--key));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 75%, transparent);
+  color: var(--lit-red-text);
 }
 
 .key.light-green {
-  border-color: var(--pvw);
-  background: var(--pvw-dim);
-  color: #c9f7d5;
-}
-
-.key.light-yellow,
-.key.light-white,
-.key.light-blue {
-  border-color: var(--line-strong);
-  background: var(--raised-2);
-  color: #fff;
+  background: color-mix(in srgb, var(--green) 20%, var(--key));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 75%, transparent);
+  color: var(--lit-green-text);
 }
 
 .key.light-yellow {
-  border-color: var(--amber);
+  background: color-mix(in srgb, var(--yellow) 22%, var(--key));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--yellow) 80%, transparent);
+  color: var(--lit-yellow-text);
+}
+
+.key.light-blue {
+  background: color-mix(in srgb, var(--blue) 20%, var(--key));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 75%, transparent);
+  color: var(--lit-blue-text);
+}
+
+.key.light-white {
+  background: var(--key-hover);
+  box-shadow: inset 0 0 0 1px var(--label-2);
+}
+
+.key:is(.light-red, .light-green, .light-yellow, .light-blue, .light-white) .key-sub {
+  color: inherit;
 }
 
 .key.is-flashing {
   animation: blink 0.9s steps(2, jump-none) infinite;
 }
 
+/* --- Transición --- */
+
 .transition {
   display: flex;
   align-items: stretch;
-  gap: 14px;
-  padding-left: 18px;
-  border-left: 1px solid var(--line);
+  gap: var(--space-3);
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--separator);
 }
 
 .trans-keys {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .key--trans {
   width: clamp(84px, 6vw, 108px);
-  height: clamp(46px, 6.6vh, 68px);
-  font-size: 13px;
+  height: clamp(52px, 8.4vh, 84px);
 }
 
 /* FTB va aparte, abajo: lejos de CUT y AUTO para no pulsarlo sin querer. */
@@ -669,21 +968,20 @@ html[data-connected="false"] .panel[data-panel="device"] .keys {
 }
 
 .key--trans.is-program {
-  border-color: var(--pgm);
   background: var(--pgm);
-  color: #fff;
+  color: var(--on-pgm);
 }
 
 .key--trans.is-amber {
-  border-color: var(--amber);
-  background: var(--amber);
-  color: #2b1a00;
+  background: var(--trans);
+  box-shadow: 0 6px 18px -6px var(--trans);
+  color: var(--on-trans);
 }
 
 .key--trans.is-ftb {
-  border-color: var(--pgm);
-  background: var(--pgm-dim);
-  color: #ffd3cf;
+  background: color-mix(in srgb, var(--red) 22%, var(--key));
+  box-shadow: inset 0 0 0 1px var(--red);
+  color: var(--lit-red-text);
   animation: blink 1s steps(2, jump-none) infinite;
 }
 
@@ -693,112 +991,185 @@ html[data-connected="false"] .panel[data-panel="device"] .keys {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .tbar-track {
   position: relative;
   flex: 1;
-  width: 46px;
+  width: 44px;
   min-height: 150px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel-2);
+  border-radius: 999px;
+  background: var(--fill-4);
+  box-shadow: inset 0 0 0 1px var(--hairline), inset 0 2px 6px var(--shadow-1);
   touch-action: none;
+}
+
+/* Ranura central, de centro a centro de la manija. */
+.tbar-track::before {
+  content: "";
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--separator);
 }
 
 .tbar-fill {
   position: absolute;
-  top: 6px;
+  top: 18px;
   left: 50%;
-  width: 3px;
+  width: 4px;
   height: 0;
-  margin-left: -1.5px;
+  margin-left: -2px;
   border-radius: 2px;
-  background: var(--amber);
+  background: var(--trans);
 }
 
+/* La manija: una perilla que se eleva mientras se arrastra. */
 .tbar-handle {
   position: absolute;
-  top: 0;
-  left: 4px;
-  right: 4px;
-  height: 28px;
+  top: 3px;
+  left: 3px;
+  right: 3px;
+  height: 30px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--line-strong);
-  border-radius: 7px;
-  background: linear-gradient(#3a3f48, #2a2e35);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  gap: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffffff, #ececf0);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 3px 8px rgb(0 0 0 / 0.22), inset 0 0 0 0.5px rgb(0 0 0 / 0.14);
   cursor: grab;
   touch-action: none;
-  will-change: transform;
+  will-change: translate;
+  transition:
+    scale var(--dur-micro-snappy) var(--ease-snappy),
+    box-shadow var(--dur-micro) var(--ease-smooth);
 }
 
 .tbar-handle span {
-  width: 18px;
-  height: 2px;
+  width: 14px;
+  height: 1.5px;
   border-radius: 1px;
-  background: rgba(255, 255, 255, 0.65);
+  background: rgb(0 0 0 / 0.3);
 }
 
 .tbar.is-dragging .tbar-handle {
   cursor: grabbing;
+  scale: calc(1 + 0.08 * var(--motion));
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.3), 0 10px 24px rgb(0 0 0 / 0.32), inset 0 0 0 0.5px rgb(0 0 0 / 0.14), 0 0 0 4px color-mix(in srgb, var(--trans) 30%, transparent);
+  transition-duration: var(--dur-micro);
+  transition-timing-function: var(--ease-smooth);
 }
 
 .tbar.is-mid .tbar-handle {
-  border-color: var(--amber);
+  outline: 2px solid var(--trans);
+  outline-offset: 1px;
 }
 
 .tbar-value {
-  color: var(--text-3);
-  font-size: 11px;
-  font-weight: 600;
+  color: var(--label-2);
+  font: 600 11px/14px var(--font);
+  letter-spacing: var(--track-11);
   font-variant-numeric: tabular-nums;
 }
 
 .tbar.is-mid .tbar-value {
-  color: var(--amber);
+  color: var(--orange-text);
 }
 
-/* --- Barra lateral --- */
+/* ============================================================
+   Barra lateral
+   ============================================================ */
 
 .sidebar {
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel);
+}
+
+/* Control segmentado: el "pulgar" de vidrio se desliza con un spring hasta la
+   opción elegida. Se usa en las pestañas y en Apariencia. */
+.segmented {
+  position: relative;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  height: var(--control-h);
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--fill-3);
+}
+
+.segmented-thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / 3);
+  border-radius: 999px;
+  background: light-dark(#ffffff, rgb(255 255 255 / 0.16));
+  box-shadow: 0 1px 3px var(--shadow-1), 0 0 0 0.5px light-dark(rgb(0 0 0 / 0.06), rgb(255 255 255 / 0.08));
+  transition: translate var(--dur-snappy) var(--ease-snappy);
+}
+
+.tabs:has(> .tab:nth-of-type(2)[aria-selected="true"]) .segmented-thumb,
+.segmented--choice:has(> .segment:nth-of-type(2) > input:checked) .segmented-thumb {
+  translate: 100% 0;
+}
+
+.tabs:has(> .tab:nth-of-type(3)[aria-selected="true"]) .segmented-thumb,
+.segmented--choice:has(> .segment:nth-of-type(3) > input:checked) .segmented-thumb {
+  translate: 200% 0;
+}
+
+.tab,
+.segment {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--label-2);
+  font: 600 12px/1 var(--font);
+  letter-spacing: var(--track-12);
+}
+
+.tab:hover,
+.segment:hover {
+  color: var(--label);
+}
+
+.tab[aria-selected="true"],
+.segment:has(> input:checked) {
+  color: var(--label);
+}
+
+.segment > input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+}
+
+.segment:has(> input:focus-visible) {
+  outline: 3px solid color-mix(in srgb, var(--blue) 60%, transparent);
+  outline-offset: 1px;
 }
 
 .tabs {
-  display: flex;
-  gap: 4px;
-  padding: 8px;
-  border-bottom: 1px solid var(--line);
-}
-
-.tab {
-  flex: 1;
-  height: 30px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-2);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.tab:hover {
-  color: var(--text);
-}
-
-.tab[aria-selected="true"] {
-  background: var(--raised);
-  color: var(--text);
+  flex: none;
+  margin: var(--card-pad) var(--card-pad) 0;
 }
 
 .panel {
@@ -806,52 +1177,58 @@ html[data-connected="false"] .panel[data-panel="device"] .keys {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 14px;
+  padding: var(--space-4) var(--card-pad) var(--card-pad);
 }
 
 .panel--scroll {
-  gap: 18px;
+  gap: var(--space-5);
   overflow-y: auto;
 }
 
 .panel-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.section-label {
-  color: var(--text-3);
-  font-size: 10.5px;
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  margin-bottom: var(--space-3);
+  padding: 0 var(--space-1);
 }
 
 .section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-2);
+}
+
+.section > .section-title {
+  padding: 0 var(--space-1);
+}
+
+/* Encabezados en tipo título, como en el sistema 26 (no en MAYÚSCULAS). */
+.section-title {
+  color: var(--label);
+  font: 600 13px/16px var(--font);
+  letter-spacing: var(--track-13);
 }
 
 .muted-note {
-  color: var(--text-3);
-  font-size: 11px;
+  color: var(--label-2);
+  font: 400 11px/14px var(--font);
+  letter-spacing: var(--track-11);
+  font-variant-numeric: tabular-nums;
 }
 
 .link-state {
-  color: var(--text-3);
-  font-size: 11.5px;
-  font-weight: 600;
+  color: var(--label-2);
+  font: 500 12px/15px var(--font);
+  letter-spacing: var(--track-12);
 }
 
 .link-state.is-on {
-  color: var(--pvw);
+  color: var(--green-text);
 }
 
 .link-state.is-warn {
-  color: var(--amber);
+  color: var(--orange-text);
 }
 
 /* --- Mezclador --- */
@@ -872,65 +1249,61 @@ html[data-connected="false"] .panel[data-panel="device"] .keys {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 10px 4px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel-2);
+  padding: 10px 4px 8px;
+  border-radius: var(--radius-inner);
+  corner-shape: squircle;
+  background: var(--fill-4);
 }
 
 .strip--master {
   flex-grow: 1.15;
-  border-color: rgba(191, 90, 242, 0.35);
+  background: var(--fill-3);
+  box-shadow: inset 0 0 0 1px var(--separator);
 }
 
 .strip-name {
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
+  font: 600 11px/14px var(--font);
+  letter-spacing: var(--track-11);
   white-space: nowrap;
 }
 
-.strip--master .strip-name {
-  color: var(--obs);
-}
-
 .strip-db {
-  color: var(--text-3);
-  font-size: 10.5px;
-  font-weight: 600;
+  color: var(--label-2);
+  font: 500 11px/14px var(--font);
+  letter-spacing: var(--track-11);
   font-variant-numeric: tabular-nums;
 }
 
 .strip-body {
   flex: 1;
-  min-height: 80px;
   width: 100%;
+  min-height: 80px;
   display: flex;
   justify-content: center;
-  gap: 5px;
+  gap: 6px;
 }
 
 .meter {
   width: 4px;
   height: 100%;
-  display: flex;
-  align-items: flex-end;
   overflow: hidden;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--fill-3);
 }
 
+/* El degradado ocupa toda la altura y el nivel lo recorta desde arriba: el
+   verde siempre queda abajo, como en un vúmetro real. */
 .meter-fill {
   width: 100%;
-  height: var(--level, 0%);
-  border-radius: 2px;
-  background: linear-gradient(to top, var(--pvw) 0%, var(--pvw) 65%, var(--amber) 88%, var(--pgm) 100%);
+  height: 100%;
+  background: linear-gradient(to top, var(--green) 0%, var(--green) 62%, var(--yellow) 82%, var(--red) 100%);
+  clip-path: inset(calc(100% - var(--level, 0%)) 0 0 0);
 }
 
 .fader {
   --fill: 0%;
-  --fader-color: var(--text-2);
-  width: 20px;
+  --fader-color: var(--blue);
+  width: 22px;
   height: 100%;
   margin: 0;
   writing-mode: vertical-lr;
@@ -940,97 +1313,109 @@ html[data-connected="false"] .panel[data-panel="device"] .keys {
 }
 
 .strip--master .fader {
-  --fader-color: var(--obs);
+  --fader-color: var(--label);
 }
 
 .fader::-webkit-slider-runnable-track {
-  width: 3px;
+  width: 4px;
   border-radius: 2px;
-  background: linear-gradient(to top, var(--fader-color) var(--fill), rgba(255, 255, 255, 0.08) var(--fill));
+  background: linear-gradient(to top, var(--fader-color) var(--fill), var(--fill-2) var(--fill));
 }
 
+/* La perilla blanca del HIG; se eleva un poco mientras se arrastra. */
 .fader::-webkit-slider-thumb {
-  width: 16px;
-  height: 10px;
-  margin-left: -6.5px;
+  width: 22px;
+  height: 14px;
+  margin-left: -9px;
   border: 0;
-  border-radius: 3px;
+  border-radius: 999px;
   appearance: none;
-  background: #e8eaee;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 6px rgb(0 0 0 / 0.18), inset 0 0 0 0.5px rgb(0 0 0 / 0.14);
+  transition: scale var(--dur-micro-snappy) var(--ease-snappy);
+}
+
+.fader:active::-webkit-slider-thumb {
+  scale: calc(1 + 0.12 * var(--motion));
 }
 
 .strip-mode {
-  color: var(--amber);
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  color: var(--orange-text);
+  font: 700 10px/13px var(--font);
+  letter-spacing: var(--track-10);
 }
 
 .mute {
-  width: 30px;
+  width: 32px;
   height: 24px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-3);
-  font-size: 10.5px;
-  font-weight: 700;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill-3);
+  color: var(--label-2);
+  font: 700 11px/1 var(--font);
+  letter-spacing: var(--track-11);
+}
+
+.mute:hover {
+  background: var(--fill-2);
+  color: var(--label);
 }
 
 .mute.is-muted {
-  border-color: var(--pgm);
   background: var(--pgm);
-  color: #fff;
+  color: var(--on-pgm);
 }
 
-/* --- OBS --- */
+/* --- Escenas de OBS: lista agrupada --- */
 
 .scenes {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
   overflow-y: auto;
+  border-radius: var(--radius-inner);
+  corner-shape: squircle;
+  background: var(--fill-4);
 }
 
 .scene {
+  position: relative;
+  flex: none;
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 36px;
+  min-height: 40px;
   padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: 8px;
+  border: 0;
   background: transparent;
-  color: var(--text);
-  font-size: 12.5px;
+  color: var(--label);
+  font: 400 13px/16px var(--font);
+  letter-spacing: var(--track-13);
   text-align: left;
 }
 
+.scene + .scene::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 30px;
+  right: 0;
+  height: 1px;
+  background: var(--separator);
+}
+
 .scene:hover {
-  background: var(--raised);
+  background: var(--fill-4);
 }
 
 .scene-dot {
-  width: 7px;
-  height: 7px;
   flex: none;
-  border: 1.5px solid var(--text-3);
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--label-3);
   border-radius: 50%;
-}
-
-.scene.is-current {
-  border-color: rgba(191, 90, 242, 0.4);
-  background: rgba(191, 90, 242, 0.12);
-  font-weight: 650;
-}
-
-.scene.is-current .scene-dot {
-  border-color: var(--obs);
-  background: var(--obs);
 }
 
 .scene-name {
@@ -1039,106 +1424,221 @@ html[data-connected="false"] .panel[data-panel="device"] .keys {
   white-space: nowrap;
 }
 
+.scene.is-current {
+  font-weight: 600;
+}
+
+.scene.is-current .scene-dot {
+  border-color: var(--purple);
+  background: var(--purple);
+}
+
+/* ✓ de la escena al aire, como en una lista del sistema. */
+.scene.is-current::after {
+  content: "";
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  background: var(--purple-text);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
 .empty {
   margin: 0;
-  padding: 6px 2px;
-  color: var(--text-3);
-  font-size: 12px;
-  line-height: 1.5;
+  padding: var(--space-3);
+  color: var(--label-2);
+  font: 400 12px/16px var(--font);
+  letter-spacing: var(--track-12);
 }
 
 /* --- Equipo --- */
 
 .facts {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 6px 16px;
   margin: 0;
-  font-size: 12.5px;
+  border-radius: var(--radius-inner);
+  corner-shape: squircle;
+  background: var(--fill-4);
 }
 
-.facts dt {
-  color: var(--text-3);
+.fact {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 10px 12px;
 }
 
-.facts dd {
+.fact + .fact::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 0;
+  height: 1px;
+  background: var(--separator);
+}
+
+.fact dt {
+  flex: none;
+  color: var(--label-2);
+}
+
+.fact dd {
+  min-width: 0;
   margin: 0;
   overflow: hidden;
-  color: var(--text);
+  color: var(--label);
   font-variant-numeric: tabular-nums;
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.keys--grid .key {
+  height: 40px;
+  font-size: 12px;
+  letter-spacing: var(--track-12);
+}
+
 .timers {
   display: flex;
-  gap: 16px;
-  color: var(--text-3);
-  font-size: 11.5px;
+  gap: var(--space-4);
+  padding: 0 var(--space-1);
+  color: var(--label-2);
+  font: 400 12px/15px var(--font);
+  letter-spacing: var(--track-12);
 }
 
 .timers b {
-  color: var(--text-2);
+  color: var(--label);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .status-line {
   margin: 0;
-  color: var(--text-2);
-  font-size: 12px;
-  line-height: 1.45;
+  padding: 0 var(--space-1);
+  color: var(--label-2);
+  font: 400 12px/16px var(--font);
+  letter-spacing: var(--track-12);
   user-select: text;
 }
 
 .status-line.is-on {
-  color: var(--pvw);
+  color: var(--green-text);
 }
 
 .status-line.is-warn {
-  color: var(--amber);
+  color: var(--orange-text);
 }
 
 .button-row {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
-
 code {
-  color: var(--text);
-  font-family: "SF Mono", ui-monospace, Menlo, monospace;
-  font-size: 11.5px;
+  color: var(--label);
+  font: 500 12px/15px var(--font-mono);
   word-break: break-all;
 }
 
-/* --- Formularios --- */
+/* ============================================================
+   Botones y campos
+   ============================================================ */
+
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--control-h);
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill-3);
+  color: var(--label);
+  font: 600 13px/1 var(--font);
+  letter-spacing: var(--track-13);
+  white-space: nowrap;
+  transition: scale var(--dur-micro-snappy) var(--ease-snappy);
+}
+
+.btn:hover {
+  background: var(--fill-2);
+}
+
+.btn:active {
+  background: var(--fill);
+  scale: calc(1 - 0.03 * var(--motion));
+  transition-duration: var(--dur-micro);
+  transition-timing-function: var(--ease-smooth);
+}
+
+.btn--primary,
+.btn--primary:hover {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+.btn--primary:active {
+  background: color-mix(in srgb, var(--accent-fill) 85%, black);
+}
+
+.btn--small {
+  height: 26px;
+  padding: 0 12px;
+  font-size: 12px;
+  letter-spacing: var(--track-12);
+}
+
+.btn:disabled,
+.btn--primary:disabled {
+  background: var(--fill-4);
+  color: var(--label-3);
+  scale: 1;
+}
 
 .field {
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
-  color: var(--text-3);
-  font-size: 11.5px;
+  color: var(--label-2);
+  font: 400 12px/15px var(--font);
+  letter-spacing: var(--track-12);
 }
 
-.field input,
-.field select {
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 13px;
+.field input {
+  height: var(--control-h);
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  corner-shape: squircle;
+  background: light-dark(rgb(255 255 255 / 0.9), rgb(0 0 0 / 0.28));
+  box-shadow: inset 0 0 0 1px var(--separator);
+  color: var(--label);
+  font: 400 13px/16px var(--font);
+  letter-spacing: var(--track-13);
+}
+
+.field input::placeholder {
+  color: var(--label-3);
+}
+
+.field input:focus-visible {
+  outline-offset: 0;
+  box-shadow: inset 0 0 0 1px var(--blue);
 }
 
 .field-row {
   display: flex;
   align-items: flex-end;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .field-row .field {
@@ -1152,119 +1652,133 @@ code {
 .check {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--text-2);
-  font-size: 12px;
+  gap: var(--space-2);
+  color: var(--label);
+}
+
+.check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent-fill);
 }
 
 .hint {
   margin: 0;
-  color: var(--text-3);
-  font-size: 11.5px;
-  line-height: 1.45;
+  color: var(--label-2);
+  font: 400 12px/16px var(--font);
+  letter-spacing: var(--track-12);
 }
 
-
-
+.hint:empty {
+  display: none;
+}
 
 .discovery {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  border-radius: var(--radius-inner);
+  corner-shape: squircle;
+  background: var(--fill-4);
+}
+
+.discovery > .hint {
+  padding: 10px 12px;
 }
 
 .discovery-item {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  font-size: 12px;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: 8px 8px 8px 12px;
 }
 
-.discovery-item code {
-  font-size: 12px;
+.discovery-item + .discovery-item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 0;
+  height: 1px;
+  background: var(--separator);
 }
 
 .discovery-item span {
   flex: 1;
-  color: var(--text-3);
+  color: var(--label-2);
 }
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--raised);
-  color: var(--text);
-  font-size: 12.5px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.btn:hover {
-  background: var(--raised-2);
-}
-
-.btn:disabled,
-.btn--primary:disabled {
-  border-color: var(--line);
-  background: var(--raised);
-  color: var(--text-3);
-  cursor: default;
-}
-
-.btn--ghost {
-  border-color: transparent;
-  background: transparent;
-  color: var(--text-2);
-}
-
-.btn--primary {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
-}
-
-.btn--primary:hover {
-  background: #2994ff;
-}
-
-.btn--small {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
-}
-
-/* --- Diálogo --- */
+/* ============================================================
+   Ajustes: vidrio grueso que nace del botón que lo abrió
+   ============================================================ */
 
 .dialog {
-  width: min(600px, calc(100vw - 32px));
+  width: min(560px, calc(100vw - 32px));
   max-height: calc(100vh - 48px);
   padding: 0;
-  border: 1px solid var(--line-strong);
-  border-radius: 16px;
-  background: var(--panel);
-  color: var(--text);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  border: 0;
+  border-radius: 26px;
+  corner-shape: squircle;
+  background: var(--glass-fill-thick);
+  box-shadow: 0 24px 64px var(--shadow-2), 0 4px 16px var(--shadow-1), 0 0 0 0.5px var(--glass-edge);
+  color: var(--label);
   user-select: text;
+  opacity: 1;
+  scale: 1;
+  translate: 0 0;
+  transition:
+    opacity var(--dur-fade) var(--ease-smooth),
+    scale var(--dur-snappy) var(--ease-snappy),
+    translate var(--dur-snappy) var(--ease-snappy),
+    display var(--dur-snappy) allow-discrete,
+    overlay var(--dur-snappy) allow-discrete;
+}
+
+/* Al cerrar vuelve por el mismo camino, más rápido y sin rebote. */
+.dialog:not([open]) {
+  opacity: 0;
+  scale: calc(1 - 0.06 * var(--motion));
+  translate: 0 calc(-8px * var(--motion));
+  transition-duration: 160ms, var(--dur-micro), var(--dur-micro), var(--dur-micro), var(--dur-micro);
+  transition-timing-function: var(--ease-smooth);
+}
+
+@starting-style {
+  .dialog[open] {
+    opacity: 0;
+    scale: calc(1 - 0.06 * var(--motion));
+    translate: 0 calc(-8px * var(--motion));
+  }
 }
 
 .dialog::backdrop {
-  background: rgba(0, 0, 0, 0.65);
+  background: rgb(0 0 0 / 0);
+  transition:
+    background var(--dur-fade) var(--ease-smooth),
+    display var(--dur-micro) allow-discrete,
+    overlay var(--dur-micro) allow-discrete;
+}
+
+.dialog[open]::backdrop {
+  background: var(--dim);
+}
+
+@starting-style {
+  .dialog[open]::backdrop {
+    background: rgb(0 0 0 / 0);
+  }
 }
 
 .dialog-form {
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  padding: 20px 22px 18px;
+  gap: var(--space-5);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-6);
 }
 
 .dialog-head {
@@ -1274,40 +1788,121 @@ code {
 }
 
 .dialog-head h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 650;
+  font: 700 17px/22px var(--font);
+  letter-spacing: var(--track-17);
+}
+
+.close-btn {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--fill-3);
+  color: var(--label-2);
+}
+
+.close-btn .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.close-btn:hover {
+  background: var(--fill-2);
+  color: var(--label);
+}
+
+.dialog-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .dialog-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--separator);
 }
 
 .form-error {
   margin: 0;
-  color: var(--pgm);
-  font-size: 12px;
+  color: var(--red-text);
+  font: 500 12px/16px var(--font);
+  letter-spacing: var(--track-12);
 }
 
-/* Arriba, sobre los monitores: nunca tapa un control. */
+/* Vidrio grueso de verdad (desenfoque y saturación del fondo) solo sin video;
+   con video, el mismo material casi opaco, para que el monitor no pierda
+   fluidez. */
+:root:not([data-video="live"]) :is(.dialog, .toast) {
+  backdrop-filter: blur(var(--glass-blur-thick)) saturate(180%);
+}
+
+:root[data-video="live"] :is(.dialog, .toast) {
+  background: var(--glass-solid);
+}
+
+/* ============================================================
+   Avisos: cápsula de vidrio arriba, sobre los monitores
+   ============================================================ */
+
 .toast {
   position: fixed;
+  top: calc(var(--toolbar-h) + var(--space-3));
   left: 50%;
-  top: 64px;
+  z-index: 10;
   max-width: min(70vw, 560px);
-  padding: 10px 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: 10px;
-  background: var(--raised);
-  color: var(--text);
-  font-size: 12.5px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-  transform: translateX(-50%);
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--glass-fill-thick);
+  box-shadow: var(--elevation-float), 0 0 0 0.5px var(--glass-edge);
+  color: var(--label);
+  font: 500 13px/18px var(--font);
+  letter-spacing: var(--track-13);
+  text-align: center;
+  opacity: 1;
+  scale: 1;
+  translate: -50% 0;
+  transition:
+    opacity var(--dur-fade) var(--ease-smooth),
+    scale var(--dur-snappy) var(--ease-snappy),
+    translate var(--dur-snappy) var(--ease-snappy),
+    visibility 0s;
+}
+
+@starting-style {
+  .toast[data-state="open"] {
+    opacity: 0;
+    scale: calc(1 - 0.06 * var(--motion));
+    translate: -50% calc(-10px * var(--motion));
+  }
+}
+
+.toast[data-state="closed"] {
+  visibility: hidden;
+  opacity: 0;
+  scale: calc(1 - 0.06 * var(--motion));
+  translate: -50% calc(-10px * var(--motion));
+  transition-duration: 160ms, var(--dur-micro), var(--dur-micro), 0s;
+  transition-timing-function: var(--ease-smooth);
+  transition-delay: 0s, 0s, 0s, var(--dur-micro);
+}
+
+/* ============================================================
+   Estados
+   ============================================================ */
+
+/* Sin conexión con el PC500 los controles quedan atenuados: se ven, pero está
+   claro que ahora no mandan nada. */
+:root[data-connected="false"] :is(.console, .mixer, #panel-device .keys) {
+  opacity: 0.45;
 }
 
 @keyframes pulse {
@@ -1322,16 +1917,100 @@ code {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation: none !important;
-    transition: none !important;
+@keyframes materialize {
+  from {
+    opacity: 0;
+    filter: blur(12px);
   }
 }
 
-/* Versión de navegador en pantallas angostas: todo en una columna. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ============================================================
+   Accesibilidad
+   ============================================================ */
+
+/* Reducir movimiento: sin desplazamientos, escalas ni parpadeos (--motion 0 los
+   anula); quedan los fundidos. Lo que parpadea muestra un borde fijo. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion: 0;
+  }
+
+  .status .dot,
+  .key.is-flashing,
+  .key--trans.is-ftb {
+    animation: none;
+  }
+
+  .key.is-flashing,
+  .key--trans.is-ftb {
+    outline: 2px dashed currentColor;
+    outline-offset: -5px;
+  }
+
+  .segmented-thumb {
+    transition: none;
+  }
+
+  .screen canvas:not([hidden]) {
+    animation: fade-in var(--dur-fade) linear backwards;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root:not([data-video="live"]) :is(.dialog, .toast) {
+    backdrop-filter: none;
+  }
+
+  .screen-label,
+  .screen-badge {
+    background: rgb(0 0 0 / 0.8);
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root:not([data-video="live"]) :is(.dialog, .toast) {
+    backdrop-filter: none;
+  }
+
+  .screen-label,
+  .screen-badge {
+    background: #000000;
+    box-shadow: inset 0 0 0 1px #ffffff;
+  }
+
+  .segmented {
+    box-shadow: inset 0 0 0 1px var(--separator);
+  }
+}
+
+/* Colores forzados (Windows): el tally conserva su color. */
+@media (forced-colors: active) {
+  .key.is-program,
+  .key.is-preview,
+  .key--trans.is-program,
+  .key--trans.is-amber,
+  .tally-tag,
+  .ftb-chip,
+  .mute.is-muted,
+  .screen::after {
+    forced-color-adjust: none;
+  }
+
+  .key {
+    border: 1px solid ButtonBorder;
+  }
+}
+
+/* ============================================================
+   Versión de navegador en pantallas angostas: todo en una columna
+   ============================================================ */
+
 @media (max-width: 1100px) {
   body {
     overflow: auto;
@@ -1342,10 +2021,11 @@ code {
     min-height: 100vh;
   }
 
-  .topbar {
+  .toolbar {
     flex-wrap: wrap;
+    row-gap: var(--space-2);
     height: auto;
-    padding: 10px 14px;
+    padding-block: var(--space-2);
   }
 
   .workspace {
@@ -1356,11 +2036,7 @@ code {
     grid-template-rows: auto auto;
   }
 
-  .monitor {
-    container-type: normal;
-  }
-
-  .monitor-inner {
+  .monitor--pgm .monitor-inner {
     width: 100%;
   }
 
@@ -1370,10 +2046,10 @@ code {
 
   .transition {
     justify-content: center;
+    padding-top: var(--space-3);
     padding-left: 0;
-    padding-top: 14px;
+    border-top: 1px solid var(--separator);
     border-left: 0;
-    border-top: 1px solid var(--line);
   }
 
   .sidebar {

@@ -4,67 +4,74 @@
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; media-src 'none'; connect-src 'self' ws: wss: http://127.0.0.1:*; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>Tenveo Studio</title>
   <link rel="stylesheet" href="./styles/app.css">
   <script type="module" src="./js/app.js"></script>
 </head>
 <body>
   <svg class="sprite" aria-hidden="true" focusable="false">
-    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="M12 2.8v2.4M12 18.8v2.4M21.2 12h-2.4M5.2 12H2.8M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7M18.5 18.5l-1.7-1.7M7.2 7.2 5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></symbol>
-    <symbol id="i-sync" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 0 1-12.9 5.2M4.5 12a7.5 7.5 0 0 1 12.9-5.2" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/><path d="M17.6 2.8v4.1h-4.1M6.4 21.2v-4.1h4.1" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-    <symbol id="i-live" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M8.3 8.3a5.2 5.2 0 0 0 0 7.4M15.7 8.3a5.2 5.2 0 0 1 0 7.4M5.5 5.5a9.2 9.2 0 0 0 0 13M18.5 5.5a9.2 9.2 0 0 1 0 13" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></symbol>
-    <symbol id="i-rec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5.5" fill="currentColor"/></symbol>
-    <symbol id="i-vcam" viewBox="0 0 24 24"><rect x="3" y="7" width="12" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="m15 11 6-3.5v9L15 13z" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/></symbol>
-    <symbol id="i-camera" viewBox="0 0 24 24"><rect x="3" y="7" width="12" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="m15 11 6-3.5v9L15 13z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/></symbol>
-    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6" fill="none" stroke="currentColor" stroke-width="1.75"/><path d="m20 20-4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><path d="M9.93 5L10.23 2.46A9.7 9.7 0 0 1 13.77 2.46L14.07 5A7.3 7.3 0 0 1 15.48 5.58L17.49 4.01A9.7 9.7 0 0 1 19.99 6.51L18.42 8.52A7.3 7.3 0 0 1 19 9.93L21.54 10.23A9.7 9.7 0 0 1 21.54 13.77L19 14.07A7.3 7.3 0 0 1 18.42 15.48L19.99 17.49A9.7 9.7 0 0 1 17.49 19.99L15.48 18.42A7.3 7.3 0 0 1 14.07 19L13.77 21.54A9.7 9.7 0 0 1 10.23 21.54L9.93 19A7.3 7.3 0 0 1 8.52 18.42L6.51 19.99A9.7 9.7 0 0 1 4.01 17.49L5.58 15.48A7.3 7.3 0 0 1 5 14.07L2.46 13.77A9.7 9.7 0 0 1 2.46 10.23L5 9.93A7.3 7.3 0 0 1 5.58 8.52L4.01 6.51A9.7 9.7 0 0 1 6.51 4.01L8.52 5.58A7.3 7.3 0 0 1 9.93 5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-sync" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 0 1-12.9 5.2M4.5 12a7.5 7.5 0 0 1 12.9-5.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M17.6 2.8v4.1h-4.1M6.4 21.2v-4.1h4.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-live" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M8.3 8.3a5.2 5.2 0 0 0 0 7.4M15.7 8.3a5.2 5.2 0 0 1 0 7.4M5.5 5.5a9.2 9.2 0 0 0 0 13M18.5 5.5a9.2 9.2 0 0 1 0 13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-rec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="4.2" fill="currentColor"/></symbol>
+    <symbol id="i-vcam" viewBox="0 0 24 24"><rect x="2.8" y="6.8" width="12.4" height="10.4" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m15.2 11 5.6-3.3v8.6L15.2 13z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><rect x="2.8" y="6.8" width="12.4" height="10.4" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="m15.2 11 5.6-3.3v8.6L15.2 13z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m15.5 15.5 4.7 4.7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-xmark" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
   </svg>
 
   <div class="app">
-    <header class="topbar">
+    <!-- Barra de herramientas: en la app de escritorio también es la barra de
+         título, con los semáforos de macOS a la izquierda. -->
+    <header class="toolbar">
       <div class="brand">
         <span class="brand-mark" aria-hidden="true"></span>
-        <span class="brand-name">Tenveo Studio</span>
+        <h1 class="brand-name">Tenveo Studio</h1>
       </div>
-      <button class="pill" id="hw-status" type="button" data-action="open-settings" title="Conexión con el PC500">
-        <span class="dot"></span>
-        <span class="pill-label">PC500</span>
-        <span class="pill-text" id="hw-text">Buscando…</span>
-        <span class="pill-meta" id="hw-latency"></span>
-      </button>
-      <span class="pill" id="obs-pill" title="Conexión con OBS Studio">
-        <span class="dot"></span>
-        <span class="pill-label">OBS</span>
-        <span class="pill-text" id="obs-pill-text">Sin conexión</span>
-      </span>
+      <div class="glass capsule status-capsule">
+        <button class="status" id="hw-status" type="button" data-action="open-settings" title="Conexión con el PC500">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="status-label">PC500</span>
+          <span class="status-text" id="hw-text">Buscando…</span>
+          <span class="status-meta" id="hw-latency"></span>
+        </button>
+        <span class="capsule-divider" aria-hidden="true"></span>
+        <span class="status" id="obs-pill" title="Conexión con OBS Studio">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="status-label">OBS</span>
+          <span class="status-text" id="obs-pill-text">Sin conexión</span>
+        </span>
+      </div>
       <span class="demo-tag" id="demo-tag" title="Modo demo: el PC500 y OBS son simuladores dentro de la página" hidden>Demo · simulador</span>
       <span class="spacer"></span>
-      <div class="output-group" role="group" aria-label="Salidas de OBS">
-        <button class="out-btn" id="obs-stream" type="button" data-action="obs-stream"><svg class="icon"><use href="#i-live"/></svg>Live</button>
-        <button class="out-btn" id="obs-record" type="button" data-action="obs-record"><svg class="icon"><use href="#i-rec"/></svg>Rec</button>
-        <button class="out-btn out-btn--blue" id="obs-vcam" type="button" data-action="obs-vcam"><svg class="icon"><use href="#i-vcam"/></svg>Vcam</button>
+      <div class="glass capsule segment-capsule" role="group" aria-label="Salidas de OBS">
+        <button class="capsule-btn" id="obs-stream" type="button" data-action="obs-stream" aria-pressed="false" title="Transmisión de OBS"><svg class="icon" aria-hidden="true"><use href="#i-live"/></svg>Live</button>
+        <button class="capsule-btn" id="obs-record" type="button" data-action="obs-record" aria-pressed="false" title="Grabación de OBS"><svg class="icon" aria-hidden="true"><use href="#i-rec"/></svg>Rec</button>
+        <button class="capsule-btn capsule-btn--blue" id="obs-vcam" type="button" data-action="obs-vcam" aria-pressed="false" title="Cámara virtual de OBS"><svg class="icon" aria-hidden="true"><use href="#i-vcam"/></svg>Vcam</button>
       </div>
-      <button class="ghost-btn" id="sync-toggle" type="button" data-action="toggle-sync" aria-pressed="true" title="Cambiar la escena de OBS al cambiar la cámara al aire">
-        <svg class="icon"><use href="#i-sync"/></svg>Sync OBS
+      <button class="glass capsule capsule-btn sync-btn" id="sync-toggle" type="button" data-action="toggle-sync" aria-pressed="true" title="Cambiar la escena de OBS al cambiar la cámara al aire">
+        <svg class="icon" aria-hidden="true"><use href="#i-sync"/></svg>Sync OBS
       </button>
-      <button class="icon-btn" type="button" data-action="open-settings" aria-label="Conexión y ajustes" title="Conexión y ajustes">
-        <svg class="icon"><use href="#i-gear"/></svg>
+      <button class="glass capsule icon-btn" type="button" data-action="open-settings" aria-label="Ajustes" title="Ajustes">
+        <svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg>
       </button>
     </header>
 
     <main class="workspace">
-      <section class="stage">
+      <section class="stage" aria-label="Monitores y consola">
         <div class="monitors">
           <figure class="monitor monitor--pvw">
             <div class="monitor-inner">
               <div class="screen">
                 <div class="placeholder">
-                  <svg class="placeholder-icon"><use href="#i-camera"/></svg>
+                  <svg class="placeholder-icon" aria-hidden="true"><use href="#i-camera"/></svg>
                   <span class="placeholder-cam" id="pvw-cam" hidden></span>
                   <span class="placeholder-sub" id="pvw-sub"></span>
                 </div>
+                <figcaption class="screen-label"><span class="tally-tag tally-tag--pvw">PVW</span><span class="screen-label-text" id="pvw-label">CAM 2 · HDMI 2</span></figcaption>
               </div>
-              <figcaption><span class="tally-tag tally-tag--pvw">PVW</span><span id="pvw-label">CAM 2 · HDMI 2</span></figcaption>
             </div>
           </figure>
           <figure class="monitor monitor--pgm" id="pgm-monitor">
@@ -72,48 +79,48 @@
               <div class="screen">
                 <canvas id="pgm-canvas" width="1920" height="1080" hidden></canvas>
                 <div class="placeholder" id="pgm-placeholder">
-                  <svg class="placeholder-icon"><use href="#i-camera"/></svg>
+                  <svg class="placeholder-icon" aria-hidden="true"><use href="#i-camera"/></svg>
                   <span class="placeholder-cam" id="pgm-cam" hidden></span>
                   <span class="placeholder-sub" id="pgm-sub"></span>
                   <span class="placeholder-hint" id="pgm-hint">Esperando el PC500…</span>
                 </div>
+                <span class="screen-black" id="pgm-black" hidden><span class="ftb-chip">Fade to black</span></span>
+                <figcaption class="screen-label"><span class="tally-tag tally-tag--pgm">PGM</span><span class="screen-label-text" id="pgm-label">CAM 1 · HDMI 1</span></figcaption>
                 <span class="screen-badge" id="video-badge" hidden></span>
-                <span class="screen-black" id="pgm-black" hidden>FTB</span>
               </div>
-              <figcaption><span class="tally-tag tally-tag--pgm">PGM</span><span id="pgm-label">CAM 1 · HDMI 1</span></figcaption>
             </div>
           </figure>
         </div>
 
-        <div class="console">
+        <div class="console card">
           <div class="rows">
             <div class="row">
-              <span class="row-label row-label--pgm">Program</span>
-              <div class="keys" id="bus-pgm"></div>
+              <span class="row-label row-label--pgm" id="label-pgm">Program</span>
+              <div class="keys" id="bus-pgm" role="group" aria-labelledby="label-pgm"></div>
             </div>
             <div class="row">
-              <span class="row-label row-label--pvw">Preview</span>
-              <div class="keys" id="bus-pvw"></div>
+              <span class="row-label row-label--pvw" id="label-pvw">Preview</span>
+              <div class="keys" id="bus-pvw" role="group" aria-labelledby="label-pvw"></div>
             </div>
             <div class="row row--keyers">
-              <span class="row-label">Capas</span>
-              <div class="keyer-rows">
+              <span class="row-label" id="label-keyers">Capas</span>
+              <div class="keyer-rows" role="group" aria-labelledby="label-keyers">
                 <div class="keys keys--small" id="keyers-a"></div>
                 <div class="keys keys--small" id="keyers-b"></div>
               </div>
             </div>
           </div>
 
-          <div class="transition">
+          <div class="transition" role="group" aria-label="Transición">
             <div class="trans-keys">
               <button class="key key--trans" id="btn-cut" type="button" data-action="cut">CUT</button>
               <button class="key key--trans" id="btn-auto" type="button" data-action="auto">AUTO</button>
-              <button class="key key--trans" id="btn-ftb" type="button" data-action="ftb">FTB</button>
+              <button class="key key--trans" id="btn-ftb" type="button" data-action="ftb" title="Fade to black">FTB</button>
             </div>
             <div class="tbar" id="tbar">
               <div class="tbar-track" id="tbar-track" role="slider" tabindex="0" aria-label="T-Bar de transición" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                 <div class="tbar-fill" id="tbar-fill"></div>
-                <div class="tbar-handle" id="tbar-handle"><span></span></div>
+                <div class="tbar-handle" id="tbar-handle"><span></span><span></span></div>
               </div>
               <div class="tbar-value" id="tbar-value">0%</div>
             </div>
@@ -121,41 +128,42 @@
         </div>
       </section>
 
-      <aside class="sidebar">
-        <nav class="tabs" role="tablist" aria-label="Paneles">
-          <button class="tab" type="button" role="tab" data-action="tab" data-tab="audio" aria-selected="true">Audio</button>
-          <button class="tab" type="button" role="tab" data-action="tab" data-tab="obs" aria-selected="false">OBS</button>
-          <button class="tab" type="button" role="tab" data-action="tab" data-tab="device" aria-selected="false">Equipo</button>
+      <aside class="sidebar card">
+        <nav class="segmented tabs" role="tablist" aria-label="Paneles">
+          <span class="segmented-thumb" aria-hidden="true"></span>
+          <button class="tab" type="button" role="tab" id="tab-audio" aria-controls="panel-audio" data-action="tab" data-tab="audio" aria-selected="true">Audio</button>
+          <button class="tab" type="button" role="tab" id="tab-obs" aria-controls="panel-obs" data-action="tab" data-tab="obs" aria-selected="false" tabindex="-1">OBS</button>
+          <button class="tab" type="button" role="tab" id="tab-device" aria-controls="panel-device" data-action="tab" data-tab="device" aria-selected="false" tabindex="-1">Equipo</button>
         </nav>
 
-        <section class="panel" data-panel="audio" role="tabpanel">
-          <div class="panel-head">
-            <span class="section-label">Mezclador</span>
-            <span class="muted-note">-60 a 0 dB</span>
-          </div>
+        <section class="panel" id="panel-audio" data-panel="audio" role="tabpanel" aria-labelledby="tab-audio">
+          <header class="panel-head">
+            <h2 class="section-title">Mezclador</h2>
+            <span class="muted-note">−60 a 0 dB</span>
+          </header>
           <div class="mixer" id="mixer"></div>
         </section>
 
-        <section class="panel" data-panel="obs" role="tabpanel" hidden>
-          <div class="panel-head">
-            <span class="section-label">Escenas</span>
+        <section class="panel" id="panel-obs" data-panel="obs" role="tabpanel" aria-labelledby="tab-obs" hidden>
+          <header class="panel-head">
+            <h2 class="section-title">Escenas</h2>
             <span class="link-state" id="obs-link">Sin conexión</span>
-          </div>
+          </header>
           <div class="scenes" id="scenes"></div>
         </section>
 
-        <section class="panel panel--scroll" data-panel="device" role="tabpanel" hidden>
+        <section class="panel panel--scroll" id="panel-device" data-panel="device" role="tabpanel" aria-labelledby="tab-device" hidden>
           <div class="section">
-            <span class="section-label">PC500</span>
+            <h2 class="section-title">PC500</h2>
             <dl class="facts">
-              <dt>Conexión</dt><dd id="fact-connection">—</dd>
-              <dt>Latencia</dt><dd id="fact-latency">—</dd>
-              <dt>IP en la red</dt><dd id="fact-ip">—</dd>
-              <dt>Firmware</dt><dd id="fact-version">—</dd>
+              <div class="fact"><dt>Conexión</dt><dd id="fact-connection">—</dd></div>
+              <div class="fact"><dt>Latencia</dt><dd id="fact-latency">—</dd></div>
+              <div class="fact"><dt>IP en la red</dt><dd id="fact-ip">—</dd></div>
+              <div class="fact"><dt>Firmware</dt><dd id="fact-version">—</dd></div>
             </dl>
           </div>
           <div class="section">
-            <span class="section-label">Transmisión y grabación del equipo</span>
+            <h2 class="section-title">Transmisión y grabación</h2>
             <div class="keys keys--grid keys--4" id="device-main"></div>
             <div class="timers">
               <span>Stream <b id="stream-time">—</b></span>
@@ -163,11 +171,11 @@
             </div>
           </div>
           <div class="section">
-            <span class="section-label">Más controles</span>
+            <h2 class="section-title">Más controles</h2>
             <div class="keys keys--grid" id="device-more"></div>
           </div>
           <div class="section">
-            <span class="section-label">Video en el monitor PGM</span>
+            <h2 class="section-title">Video en el monitor PGM</h2>
             <p class="status-line" id="video-status">Esperando el PC500…</p>
             <div class="button-row" id="video-actions" hidden>
               <button class="btn btn--primary" type="button" data-action="start-device-stream" id="start-stream">Encender STREAM</button>
@@ -182,26 +190,30 @@
   <dialog class="dialog" id="settings-dialog" aria-labelledby="settings-title">
     <form class="dialog-form" id="settings-form" novalidate>
       <header class="dialog-head">
-        <h2 id="settings-title">Conexión</h2>
-        <button class="icon-btn" type="button" data-action="close-settings" aria-label="Cerrar">✕</button>
+        <h2 id="settings-title">Ajustes</h2>
+        <button class="close-btn" type="button" data-action="close-settings" aria-label="Cerrar"><svg class="icon" aria-hidden="true"><use href="#i-xmark"/></svg></button>
       </header>
 
-      <div class="section">
-        <span class="section-label">PC500</span>
+      <section class="dialog-section">
+        <h3 class="section-title">PC500</h3>
         <p class="hint">Todo va por la red: control y video. Con un cable directo entre el PC500 y la Mac, "Buscar en la red" lo encuentra solo.</p>
         <div class="field-row">
           <label class="field">
             <span>IP del PC500 en la red</span>
             <input id="field-ip" name="ethernetIp" type="text" inputmode="decimal" placeholder="192.168.1.188" autocomplete="off" spellcheck="false">
           </label>
-          <button class="btn btn--icon" type="button" data-action="discover" id="discover-btn"><svg class="icon"><use href="#i-search"/></svg>Buscar en la red</button>
+          <button class="btn" type="button" data-action="discover" id="discover-btn"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>Buscar en la red</button>
         </div>
         <div class="discovery" id="discovery" hidden></div>
+        <div class="button-row">
+          <button class="btn btn--small" type="button" data-action="reconnect">Reconectar</button>
+          <button class="btn btn--small" type="button" data-action="open-panel">Panel web del equipo</button>
+        </div>
         <p class="hint" id="adb-text"></p>
-      </div>
+      </section>
 
-      <div class="section">
-        <span class="section-label">OBS Studio</span>
+      <section class="dialog-section">
+        <h3 class="section-title">OBS Studio</h3>
         <div class="field-row">
           <label class="field">
             <span>Host</span>
@@ -220,12 +232,21 @@
           <input id="field-obs-clear" name="clearObsPassword" type="checkbox">
           <span>Quitar la contraseña guardada</span>
         </label>
-      </div>
+      </section>
+
+      <section class="dialog-section">
+        <h3 class="section-title" id="appearance-title">Apariencia</h3>
+        <div class="segmented segmented--choice" role="radiogroup" aria-labelledby="appearance-title">
+          <span class="segmented-thumb" aria-hidden="true"></span>
+          <label class="segment"><input type="radio" name="appearance" value="system"><span>Automática</span></label>
+          <label class="segment"><input type="radio" name="appearance" value="dark"><span>Oscura</span></label>
+          <label class="segment"><input type="radio" name="appearance" value="light"><span>Clara</span></label>
+        </div>
+        <p class="hint">Automática sigue la apariencia de macOS. Se aplica al instante.</p>
+      </section>
 
       <p class="form-error" id="settings-error" role="alert" hidden></p>
       <footer class="dialog-actions">
-        <button class="btn btn--ghost" type="button" data-action="open-panel">Panel web del equipo</button>
-        <button class="btn btn--ghost" type="button" data-action="reconnect">Reconectar</button>
         <span class="spacer"></span>
         <button class="btn" type="button" data-action="close-settings">Cancelar</button>
         <button class="btn btn--primary" type="submit">Guardar y conectar</button>

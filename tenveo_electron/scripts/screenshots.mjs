@@ -1,7 +1,9 @@
 // Capturas de la interfaz en sus estados principales, para revisar el diseño:
-// cada pestaña con video en el monitor PGM, el diálogo de ajustes, sin conexión
-// y la ventana en su tamaño mínimo. Usa los simuladores del PC500 y de OBS, un
-// servidor RTMP de prueba y el emisor de prueba, como npm run smoke:video.
+// cada pestaña con video en el monitor PGM, el diálogo de ajustes, sin conexión,
+// la ventana en su tamaño mínimo y en pantallas grandes, la apariencia clara y
+// las preferencias de accesibilidad (más contraste, transparencia reducida).
+// Usa los simuladores del PC500 y de OBS, un servidor RTMP de prueba y el
+// emisor de prueba, como npm run smoke:video.
 //
 // Uso: node scripts/screenshots.mjs [carpeta] [--solo 7,8]   (por defecto, una carpeta temporal)
 // Con TENVEO_SMOKE_APP se captura una app empaquetada.
@@ -62,6 +64,9 @@ const packaged = process.env.TENVEO_SMOKE_APP;
 const appCommand = packaged ? path.join(packaged, 'Contents', 'MacOS', path.basename(packaged, '.app')) : electronPath;
 
 const VIDEO = '[data-action="start-device-stream"]';
+const LIGHT = 'input[name="appearance"][value="light"]';
+const CONTRAST = 'prefers-contrast:more';
+const SOLID = 'prefers-reduced-transparency:reduce';
 const STATES = [
   { name: '1-audio', clicks: [VIDEO, '[data-action="tab"][data-tab="audio"]'], video: true },
   { name: '2-obs', clicks: ['[data-action="tab"][data-tab="obs"]'], video: true },
@@ -71,6 +76,12 @@ const STATES = [
   { name: '6-sin-conexion', clicks: [], video: false, offline: true },
   { name: '7-1920', clicks: ['[data-action="tab"][data-tab="audio"]'], video: true, size: '1920x1080' },
   { name: '8-pantalla-5k', clicks: ['[data-action="tab"][data-tab="device"]'], video: true, size: '2560x1415' },
+  { name: '9-claro', clicks: [LIGHT, '[data-action="tab"][data-tab="audio"]'], video: true },
+  { name: '10-claro-equipo', clicks: [LIGHT, '[data-action="tab"][data-tab="device"]'], video: true },
+  { name: '11-claro-ajustes', clicks: [LIGHT, '[data-action="open-settings"]'], video: true },
+  { name: '12-contraste', clicks: ['[data-action="tab"][data-tab="audio"]'], video: true, media: CONTRAST },
+  { name: '13-contraste-claro', clicks: [LIGHT, '[data-action="tab"][data-tab="obs"]'], video: true, media: CONTRAST },
+  { name: '14-transparencia-reducida', clicks: ['[data-action="open-settings"]'], video: true, media: SOLID },
 ];
 
 for (const state of STATES) {
@@ -92,6 +103,7 @@ for (const state of STATES) {
       TENVEO_SMOKE_WAIT_MS: state.offline ? '2500' : '8000',
       ...(state.video ? { TENVEO_SMOKE_WAIT_VIDEO: '1' } : {}),
       ...(state.size ? { TENVEO_SMOKE_SIZE: state.size } : {}),
+      ...(state.media ? { TENVEO_SMOKE_MEDIA: state.media } : {}),
     },
     stdio: 'ignore',
   });

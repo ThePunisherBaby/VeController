@@ -16,6 +16,7 @@
 //   node scripts/bench-video.mjs --app "/ruta/Tenveo Studio.app"
 //   node scripts/bench-video.mjs --segundos 20 --perfil 1080p60 --json salida.json
 //   node scripts/bench-video.mjs --registro    muestra lo que escriben la app y el emisor
+//   node scripts/bench-video.mjs --ajustes     mide con el diálogo de ajustes abierto sobre el video
 //   node scripts/bench-video.mjs --equipo fe80::…%en0
 //       con el PC500 real: enciende STREAM (solo si sus destinos son el servidor
 //       interno), mide cuadros, tirones y CPU, y apaga STREAM. No cambia el
@@ -41,6 +42,7 @@ const appBundle = arg('--app');
 const seconds = Number(arg('--segundos', '15'));
 const jsonOut = arg('--json');
 const verbose = process.argv.includes('--registro');
+const withSettings = process.argv.includes('--ajustes');
 const device = arg('--equipo');
 const output = verbose ? 'inherit' : 'ignore';
 const PROFILES = {
@@ -346,6 +348,10 @@ try {
     throw new Error(`El video no llegó al monitor PGM: ${why}`);
   }
   await delay(3000);
+  if (withSettings) {
+    await page.evaluate(`document.querySelector('[data-action="open-settings"]').click()`);
+    await delay(1000);
+  }
 
   const cpuStart = cpuByType(appProcess.pid);
   const wallStart = Date.now();
@@ -406,7 +412,7 @@ if (failure) {
 const r = result;
 const fmt = (value, digits = 1) => (value === null || value === undefined || Number.isNaN(value) ? '—' : value.toFixed(digits));
 console.log(`App: ${r.app}`);
-console.log(`Video: ${r.perfil.nombre} (${r.cuadros.tamano.join('x')}), ${fmt(r.segundos)} s medidos`);
+console.log(`Video: ${r.perfil.nombre} (${r.cuadros.tamano.join('x')}), ${fmt(r.segundos)} s medidos${withSettings ? ', con Ajustes abierto' : ''}`);
 console.log(`Latencia de punta a punta: mediana ${fmt(r.latenciaMs?.mediana, 0)} ms · p95 ${fmt(r.latenciaMs?.p95, 0)} ms · máx ${fmt(r.latenciaMs?.max, 0)} ms`);
 console.log(`Búfer del reproductor (o espera del monitor): mediana ${fmt(r.bufferS?.mediana, 2)} s · máx ${fmt(r.bufferS?.max, 2)} s`);
 console.log(`Cuadros: ${r.cuadros.decodificados} decodificados · ${r.cuadros.perdidos} perdidos (${fmt(r.cuadros.perdidosPct)} %)`);

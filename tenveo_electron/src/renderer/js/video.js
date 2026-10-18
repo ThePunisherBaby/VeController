@@ -9,17 +9,21 @@ export function createPgmVideo({ canvas, placeholder, hint, badge }) {
   let worker = null;
   let current = '';
   let showing = false;
+  // Con video en pantalla la interfaz evita los desenfoques de fondo (CSS).
+  const root = document.documentElement;
 
   const show = () => {
     showing = true;
+    root.dataset.video = 'live';
     canvas.hidden = false;
     placeholder.hidden = true;
-    badge.textContent = 'RED · PC500';
+    badge.textContent = 'En vivo';
     badge.hidden = false;
   };
 
   const hide = (message) => {
     showing = false;
+    if (root.dataset.video !== 'off') root.dataset.video = 'off';
     canvas.hidden = true;
     placeholder.hidden = false;
     badge.hidden = true;

@@ -7,6 +7,8 @@ Este documento detalla el estado actual del proyecto, las funciones implementada
 > **18 de octubre de 2026 (1.2.0):** probada con un **PC500 real** por cable directo: conexión por IPv6 de enlace local, lectura de estado, Preview, STREAM y video 1080p60 en el monitor PGM por adb en red.
 >
 > **18 de octubre de 2026 (1.3.0):** **todo por red** (sin USB ni modos), Electron 43 para recuperar la GPU en esta Mac y un monitor PGM nuevo con WebCodecs. Con el PC500 real: de 36 % de cuadros perdidos a 0 %, ventana fluida a 60 cuadros/s y CPU de 149 % a 41 %. Lo marcado como "probado con simulador" todavía falta confirmarlo con el equipo.
+>
+> **18 de octubre de 2026 (1.4.0):** **rediseño completo al estilo de Apple** (HIG, sistema 26): apariencia clara y oscura, alto contraste, controles de vidrio, springs y barra de título integrada. La especificación está en [tenveo_electron/DISENO.md](tenveo_electron/DISENO.md). Con video, menos latencia y CPU que la 1.3.0.
 
 ---
 
@@ -16,7 +18,7 @@ Este documento detalla el estado actual del proyecto, las funciones implementada
 - [x] **Conmutación básica en vivo:** Selección de cámaras (1, 2, 3, 4, AUX) en Preview, transiciones CUT, AUTO y FTB (Fade to Black).
 - [x] **Sincronización bidireccional:** Cambios reflejados en LEDs físicos y en la interfaz en tiempo real.
 - [x] **Migración a Electron:** Consola completa en [`tenveo_electron/`](tenveo_electron/).
-- [x] **Interfaz minimalista:** PGM grande en 16:9 y PVW como tarjeta, consola en grilla que llena el ancho, barra lateral con pestañas de Audio, OBS y Equipo. Revisada con capturas en cada estado, en el tamaño mínimo, en 1920×1080 y en una pantalla 5K (`scripts/screenshots.mjs`).
+- [x] **Diseño al estilo de Apple (1.4.0):** colores de sistema con variantes clara, oscura y de alto contraste; SF Pro con los estilos de macOS; geometría concéntrica; vidrio solo en la capa de controles; springs; Reducir movimiento y transparencia. PGM grande en 16:9 con rótulos dentro de la imagen, consola en grilla, barra lateral con pestañas. Revisado en 14 capturas (`scripts/screenshots.mjs`) y medido con `bench-video` ([DISENO.md](tenveo_electron/DISENO.md)).
 - [x] **Comunicación por red optimizada:** una sola ruta por red; búsqueda automática del PC500 (IPv4 e IPv6); latido cada segundo con latencia visible; corte detectado en 3,5 s; reintentos de 250 ms a 2 s. **Probado con el PC500 real** por cable directo, con mediciones contra la 1.0.0 (DOCUMENTACION.md, sección 8).
 - [x] **Cable directo PC500 ↔ Mac:** control por IPv6 de enlace local y video por adb en red, sin configurar la red de la Mac. **Probado con el PC500 real.**
 - [x] **Fluidez (1.3.0):** GPU recuperada (Electron 43), monitor PGM en un worker con WebCodecs, interfaz que solo toca el DOM donde algo cambió, Preview marcado en el mismo cuadro del clic. Medido con `bench-video` (DOCUMENTACION.md, sección 8).
@@ -25,7 +27,7 @@ Este documento detalla el estado actual del proyecto, las funciones implementada
 - [x] **Integración OBS Studio (v5):** Stream, Grabación, Cámara Virtual, escenas y sincronización automática, con contraseña.
 - [x] **Compilación sin Xcode:** App de Mac universal (Intel y Apple Silicon) en `.dmg` y `.zip` con `npm run dist`; versión web con modo demo.
 - [x] **Plug & Play:** la app busca sola el PC500 en la red e incluye `adb` para el video por cable directo.
-- [x] **Pruebas automáticas:** 91 pruebas del protocolo, la red, IPv6, OBS, la búsqueda, el video, adb, la configuración y la sintaxis, más pruebas de humo de la app, la versión web, el modo demo y el video con STREAM. Diagnóstico (`check-device`) y mediciones (`bench-network`, `bench-video`) con el equipo real.
+- [x] **Pruebas automáticas:** 96 pruebas del protocolo, la red, IPv6, OBS, la búsqueda, el video, adb, la configuración, los springs y la sintaxis, más pruebas de humo de la app, la versión web, el modo demo y el video con STREAM. Diagnóstico (`check-device`) y mediciones (`bench-network`, `bench-video`) con el equipo real.
 
 ---
 
@@ -91,7 +93,7 @@ El análisis del firmware original (`index.js` y `pc.html`) reveló comandos adi
 ### 5. Empaque, Distribución y Experiencia de Usuario en macOS
 - [x] **ADB embebido (sin dependencia de terminal).**
 - [x] **Compilación Universal / Apple Silicon (ARM64 nativo).**
-- [x] **Instalador `.dmg` drag-and-drop:** `npm run dist` genera `TenveoStudio-1.3.0-universal.dmg` (220 MB).
+- [x] **Instalador `.dmg` drag-and-drop:** `npm run dist` genera `TenveoStudio-1.4.0-universal.dmg` (220 MB).
 - [ ] **Icono oficial de la aplicación:**
   - Diseñar y asignar el archivo `.icns` (en `tenveo_electron/build/icon.icns`).
 - [ ] **Firma con Developer ID y notarización:**

@@ -18,8 +18,10 @@
 //   TENVEO_SMOKE_VIDEO_TIMEOUT_MS  cuánto esperar ese video (por defecto 15000)
 //   TENVEO_SMOKE_STOP_STREAM=1 al terminar, apaga STREAM si ningún destino sale a internet
 //   TENVEO_SMOKE_SIZE     tamaño de la ventana en las capturas, por ejemplo 1180x740
+//   TENVEO_SMOKE_MEDIA    preferencias del sistema simuladas en las capturas, por ejemplo
+//                         prefers-contrast:more,prefers-reduced-transparency:reduce
 
-import { app, BrowserWindow, ipcMain, net, protocol, safeStorage, session, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeTheme, net, protocol, safeStorage, session, shell } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -330,6 +332,21 @@ function registerPermissions() {
   ses.setPermissionCheckHandler(() => false);
 }
 
+// El fondo de la ventana es el de la interfaz, así no hay destellos al abrir
+// ni al cambiar de apariencia.
+const windowBackground = () => (nativeTheme.shouldUseDarkColors ? '#000000' : '#f2f2f7');
+
+// La apariencia elegida en Ajustes (system, dark o light) también pinta lo
+// nativo: los semáforos, las barras de desplazamiento y los menús.
+let appliedAppearance = '';
+function syncAppearance() {
+  const { appearance } = controller.snapshot().settings;
+  if (appearance === appliedAppearance) return;
+  appliedAppearance = appearance;
+  nativeTheme.themeSource = appearance;
+  mainWindow?.setBackgroundColor(windowBackground());
+}
+
 function createWindow() {
   const smoke = Boolean(env.TENVEO_SMOKE_SHOT);
   const [smokeWidth, smokeHeight] = String(env.TENVEO_SMOKE_SIZE || '').split('x').map(Number);
@@ -338,7 +355,11 @@ function createWindow() {
     height: smoke && smokeHeight ? smokeHeight : 900,
     minWidth: 1180,
     minHeight: 740,
-    backgroundColor: '#0b0c0f',
+    backgroundColor: windowBackground(),
+    // La barra de la app hace de barra de título: los semáforos quedan dentro,
+    // centrados en sus 52 px de alto.
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 20, y: 19 },
     title: 'Tenveo Studio',
     show: false,
     webPreferences: {
@@ -355,6 +376,9 @@ function createWindow() {
     if (!isAppUrl(url)) event.preventDefault();
   });
   if (!smoke) win.once('ready-to-show', () => win.show());
+  // En pantalla completa no hay semáforos: la barra recupera ese espacio.
+  win.on('enter-full-screen', () => controller.setExtra('window', { fullscreen: true }));
+  win.on('leave-full-screen', () => controller.setExtra('window', { fullscreen: false }));
   win.on('closed', () => {
     mainWindow = null;
   });
@@ -374,6 +398,15 @@ async function runSmoke(win) {
   try {
     if (win.webContents.isLoading()) {
       await new Promise((resolve) => win.webContents.once('did-finish-load', resolve));
+    }
+    if (env.TENVEO_SMOKE_MEDIA) {
+      // Más contraste, transparencia reducida, etc., como si estuvieran activos en macOS.
+      const features = env.TENVEO_SMOKE_MEDIA.split(',').map((pair) => {
+        const [name, value] = pair.split(':');
+        return { name: name.trim(), value: String(value ?? '').trim() };
+      });
+      win.webContents.debugger.attach('1.3');
+      await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features });
     }
     const start = Date.now();
     while (Date.now() - start < waitMs) {
@@ -478,6 +511,9 @@ async function bootstrap() {
   controller.onChange(syncVideo);
   controller.onChange(syncDeviceVideo);
   controller.onChange(syncAdbTarget);
+  controller.onChange(syncAppearance);
+  syncAppearance();
+  nativeTheme.on('updated', () => mainWindow?.setBackgroundColor(windowBackground()));
   registerIpc();
 
   if (env.TENVEO_DISABLE_ADB !== '1') {

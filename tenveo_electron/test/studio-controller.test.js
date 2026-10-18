@@ -179,7 +179,28 @@ test('normaliza una configuración guardada y descarta las opciones viejas', () 
     videoKey: 'clave_1',
     rtmpPort: 1936,
   });
-  assert.deepEqual(old, { ethernetIp: 'fe80::10bf:b2ff:feee:6e2d%en0', obsHost: 'mac-estudio.local', obsPort: 4444, syncWithObs: false });
+  assert.deepEqual(old, {
+    ethernetIp: 'fe80::10bf:b2ff:feee:6e2d%en0',
+    obsHost: 'mac-estudio.local',
+    obsPort: 4444,
+    syncWithObs: false,
+    appearance: 'system',
+  });
+});
+
+test('la apariencia sigue al sistema y se puede fijar en oscura o clara', () => {
+  const { controller, saved } = setup();
+  assert.equal(controller.snapshot().settings.appearance, 'system');
+
+  controller.dispatch('setAppearance', 'light');
+  assert.equal(controller.snapshot().settings.appearance, 'light');
+  assert.equal(saved.at(-1)[0].appearance, 'light');
+
+  assert.throws(() => controller.dispatch('setAppearance', 'sepia'), /Apariencia desconocida/);
+  assert.equal(controller.snapshot().settings.appearance, 'light');
+
+  assert.equal(normalizeSettings({ appearance: 'dark' }).appearance, 'dark');
+  assert.equal(normalizeSettings({ appearance: 'azul' }).appearance, 'system');
 });
 
 test('la foto del estado no incluye los datos crudos del equipo', () => {

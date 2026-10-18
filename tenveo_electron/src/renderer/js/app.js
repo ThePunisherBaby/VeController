@@ -12,6 +12,7 @@ import {
   clamp01,
 } from '../../core/pc500-protocol.js';
 import { connectBackend } from './backend.js';
+import { SpringValue, fromDurationBounce } from './springs.js';
 import { createPgmVideo } from './video.js';
 
 const $ = (id) => document.getElementById(id);
@@ -73,11 +74,17 @@ const els = {
   fieldObsClear: $('field-obs-clear'),
   fieldObsClearRow: $('field-obs-clear-row'),
   settingsError: $('settings-error'),
+  appearance: document.querySelectorAll('input[name="appearance"]'),
+  tabs: document.querySelector('.tabs'),
   toast: $('toast'),
 };
 
+const root = document.documentElement;
 const backend = await connectBackend();
-document.documentElement.dataset.platform = backend.kind;
+root.dataset.platform = backend.kind;
+// En la Mac la barra de la app hace de barra de título y deja lugar a los semáforos.
+root.dataset.os = /Mac/.test(navigator.platform) ? 'mac' : 'other';
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
 let snapshot = null;
 let renderQueued = false;
@@ -93,6 +100,16 @@ function setHidden(element, hidden) {
   if (element.hidden !== hidden) element.hidden = hidden;
 }
 
+// El estado encendido también se anuncia a VoiceOver.
+function setPressed(element, pressed) {
+  const value = String(Boolean(pressed));
+  if (element.getAttribute('aria-pressed') !== value) element.setAttribute('aria-pressed', value);
+}
+
+function setRootData(name, value) {
+  if (root.dataset[name] !== value) root.dataset[name] = value;
+}
+
 const camById = new Map(CAMERAS.map((c) => [c.id, c]));
 // Sin dato del equipo (por ejemplo, recién conectado) no se inventa una cámara.
 const camLabel = (id) => {
@@ -104,14 +121,16 @@ const camName = (id) => (id ? (camById.get(String(id))?.name ?? `CAM ${id}`) : '
 
 // --- Comandos y avisos ---
 
+// El aviso entra desde arriba con un spring y sale por el mismo camino (CSS).
 let toastTimer = 0;
 function showToast(message) {
   if (!message) return;
-  els.toast.textContent = message;
   els.toast.hidden = false;
+  els.toast.dataset.state = 'open';
+  els.toast.textContent = message;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
-    els.toast.hidden = true;
+    els.toast.dataset.state = 'closed';
   }, 4500);
 }
 
@@ -245,10 +264,20 @@ function buildMixer() {
 
 // --- T-Bar ---
 
-const tbarState = { pos: -1, travel: 0, dragging: false, pointerId: null, startY: 0, startPos: 0, frame: 0, pending: null };
+const tbarState = { pos: -1, travel: 0, dragging: false, pointerId: null, startY: 0, startPos: 0, frame: 0, pending: null, releasedAt: -Infinity };
+// Tras soltarla, la T-Bar se queda donde la dejó el usuario hasta que el equipo
+// lo confirme: un estado viejo que llega por IPC no la hace volver atrás.
+const TBAR_SETTLE_MS = 400;
+
+// La manija se mueve 1:1 con el puntero. Cuando la posición cambia sin
+// arrastrarla (por ejemplo, al reconectar), va con un spring que se puede
+// redirigir sin saltos.
+const TBAR_SPRING = fromDurationBounce(0.3, 0);
+const tbarSpring = { value: null, frame: 0 };
 
 function tbarTravel() {
-  return Math.max(1, els.tbarTrack.clientHeight - els.tbarHandle.offsetHeight);
+  // La manija está a 3 px de cada borde del riel.
+  return Math.max(1, els.tbarTrack.clientHeight - els.tbarHandle.offsetHeight - 6);
 }
 
 function paintTbar(pos, force = false) {
@@ -256,12 +285,48 @@ function paintTbar(pos, force = false) {
   if (!force && pos === tbarState.pos && travel === tbarState.travel) return;
   tbarState.pos = pos;
   tbarState.travel = travel;
-  els.tbarHandle.style.transform = `translateY(${(pos * travel).toFixed(1)}px)`;
-  els.tbarFill.style.height = `${Math.max(0, pos * travel - 6).toFixed(1)}px`;
-  const percent = Math.round(pos * 100);
+  // translate y no transform: así la escala de "elevarse" no corre la manija.
+  els.tbarHandle.style.translate = `0 ${(pos * travel).toFixed(1)}px`;
+  els.tbarFill.style.height = `${Math.max(0, pos * travel).toFixed(1)}px`;
+  const percent = Math.round(clamp01(pos) * 100);
   setText(els.tbarValue, `${percent}%`);
   els.tbarTrack.setAttribute('aria-valuenow', String(percent));
-  els.tbar.classList.toggle('is-mid', pos > 0 && pos < 1);
+  els.tbar.classList.toggle('is-mid', percent > 0 && percent < 100);
+}
+
+function stopTbarSpring() {
+  cancelAnimationFrame(tbarSpring.frame);
+  tbarSpring.frame = 0;
+}
+
+function stepTbarSpring(ms) {
+  const now = ms / 1000;
+  const spring = tbarSpring.value;
+  if (spring.isSettled(now)) {
+    tbarSpring.frame = 0;
+    paintTbar(spring.target);
+    return;
+  }
+  paintTbar(spring.sample(now).value);
+  tbarSpring.frame = requestAnimationFrame(stepTbarSpring);
+}
+
+function animateTbarTo(pos) {
+  const spring = tbarSpring.value;
+  if (spring && spring.target === pos && (tbarSpring.frame || tbarState.pos === pos)) return;
+  if (tbarState.pos < 0 || reducedMotion.matches) {
+    stopTbarSpring();
+    tbarSpring.value = new SpringValue(pos, TBAR_SPRING);
+    paintTbar(pos);
+    return;
+  }
+  const now = performance.now() / 1000;
+  if (!spring || !tbarSpring.frame) {
+    tbarSpring.value = new SpringValue(tbarState.pos, TBAR_SPRING);
+    tbarSpring.value.set(tbarState.pos, now);
+  }
+  tbarSpring.value.retarget(pos, now);
+  if (!tbarSpring.frame) tbarSpring.frame = requestAnimationFrame(stepTbarSpring);
 }
 
 function flushTbar() {
@@ -283,6 +348,7 @@ function setupTbar() {
   els.tbarHandle.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
     event.preventDefault();
+    stopTbarSpring();
     tbarState.dragging = true;
     tbarState.pointerId = event.pointerId;
     tbarState.startY = event.clientY;
@@ -303,6 +369,7 @@ function setupTbar() {
     if (!tbarState.dragging || event.pointerId !== tbarState.pointerId) return;
     tbarState.dragging = false;
     tbarState.pointerId = null;
+    tbarState.releasedAt = performance.now();
     els.tbar.classList.remove('is-dragging');
     flushTbar();
   };
@@ -318,6 +385,8 @@ function setupTbar() {
     else if (event.key === 'End') pos = 1;
     if (pos === null) return;
     event.preventDefault();
+    stopTbarSpring();
+    tbarState.releasedAt = performance.now();
     paintTbar(pos);
     queueTbar(pos);
   });
@@ -350,6 +419,7 @@ function videoRouteSummary(adb) {
 
 function setActive(element, active) {
   element.classList.toggle('is-active', Boolean(active));
+  setPressed(element, active);
 }
 
 const isIPv6 = (host) => String(host).includes(':');
@@ -365,7 +435,9 @@ function connectionText(sw) {
 function renderTopbar(sw, obs, settings, extras) {
   const connected = sw.connection === 'ethernet';
   els.hw.classList.toggle('is-on', connected);
-  if (document.documentElement.dataset.connected !== String(connected)) document.documentElement.dataset.connected = String(connected);
+  setRootData('connected', String(connected));
+  setRootData('appearance', settings.appearance || 'system');
+  setRootData('fullscreen', String(Boolean(extras?.window?.fullscreen)));
   setText(els.hwText, connectionText(sw));
   setText(els.hwLatency, connected && Number.isFinite(sw.latencyMs) ? `${sw.latencyMs} ms` : '');
   els.hw.title = [connected ? sw.endpoint : sw.lastError, videoRouteSummary(extras?.adb)].filter(Boolean).join('\n');
@@ -394,7 +466,10 @@ function shownPreview(sw) {
 }
 
 function paintPreviewKeys(cam) {
-  for (const key of els.busPvw.children) key.classList.toggle('is-preview', key.dataset.cam === cam);
+  for (const key of els.busPvw.children) {
+    key.classList.toggle('is-preview', key.dataset.cam === cam);
+    setPressed(key, key.dataset.cam === cam);
+  }
 }
 
 function selectPreview(cam) {
@@ -417,7 +492,10 @@ function renderStage(sw) {
   setText(els.pgmLabel, camLabel(sw.pgm));
   setHidden(els.pgmBlack, !sw.ftb);
 
-  for (const key of els.busPgm.children) key.classList.toggle('is-program', key.dataset.cam === sw.pgm);
+  for (const key of els.busPgm.children) {
+    key.classList.toggle('is-program', key.dataset.cam === sw.pgm);
+    setPressed(key, key.dataset.cam === sw.pgm);
+  }
   paintPreviewKeys(pvwId);
 
   for (const [id, key] of panelKeys) {
@@ -429,12 +507,14 @@ function renderStage(sw) {
       key.dataset.light = lightClass;
     }
     key.classList.toggle('is-flashing', light.flash);
+    setPressed(key, light.on);
   }
 
   els.cut.classList.toggle('is-program', Boolean(sw.cut));
   els.auto.classList.toggle('is-amber', Boolean(sw.auto));
   els.ftb.classList.toggle('is-ftb', Boolean(sw.ftb));
-  if (!tbarState.dragging && tbarState.pending === null) paintTbar(clamp01(sw.tbar));
+  const settling = performance.now() - tbarState.releasedAt < TBAR_SETTLE_MS;
+  if (!tbarState.dragging && tbarState.pending === null && !settling) animateTbarTo(clamp01(sw.tbar));
 }
 
 function renderMixer(sw) {
@@ -538,6 +618,10 @@ function renderDevice(sw, settings, extras) {
 }
 
 function renderDialog(sw, settings, extras) {
+  for (const input of els.appearance) {
+    const checked = input.value === (settings.appearance || 'system');
+    if (input.checked !== checked) input.checked = checked;
+  }
   if (!els.dialog.open) return;
   setText(els.adbText, videoRouteSummary(extras?.adb));
   renderDiscovery(extras?.discovery);
@@ -608,7 +692,12 @@ function scheduleRender() {
 
 const TAB_KEY = 'tenveo-studio.tab';
 function selectTab(name) {
-  for (const tab of document.querySelectorAll('.tab')) tab.setAttribute('aria-selected', String(tab.dataset.tab === name));
+  for (const tab of document.querySelectorAll('.tab')) {
+    const selected = tab.dataset.tab === name;
+    tab.setAttribute('aria-selected', String(selected));
+    // Solo la pestaña elegida entra en el orden del tabulador; las flechas mueven entre ellas.
+    tab.tabIndex = selected ? 0 : -1;
+  }
   for (const panel of document.querySelectorAll('.panel')) panel.hidden = panel.dataset.panel !== name;
   try {
     localStorage.setItem(TAB_KEY, name);
@@ -624,7 +713,8 @@ function showFormError(message) {
   els.settingsError.hidden = !message;
 }
 
-function openSettings() {
+// El diálogo nace del botón que lo abrió: su escala parte de ese punto.
+function openSettings(trigger) {
   if (!snapshot) return;
   const { settings } = snapshot;
   els.fieldIp.value = settings.ethernetIp || '';
@@ -636,6 +726,13 @@ function openSettings() {
   els.fieldObsClearRow.hidden = !settings.hasObsPassword;
   showFormError('');
   els.dialog.showModal();
+  if (trigger) {
+    const from = trigger.getBoundingClientRect();
+    const to = els.dialog.getBoundingClientRect();
+    const x = from.left + from.width / 2 - to.left;
+    const y = from.top + from.height / 2 - to.top;
+    els.dialog.style.transformOrigin = `${x.toFixed(0)}px ${y.toFixed(0)}px`;
+  }
   render();
 }
 
@@ -692,7 +789,7 @@ const ACTIONS = {
   'obs-scene': (t) => send('obsSetScene', t.dataset.scene),
   mute: (t) => send('toggleMute', t.dataset.channel),
   tab: (t) => selectTab(t.dataset.tab),
-  'open-settings': () => openSettings(),
+  'open-settings': (t) => openSettings(t),
   'close-settings': () => els.dialog.close(),
   reconnect: () => send('retryHardware'),
   'open-panel': () => openOriginalPanel(),
@@ -714,8 +811,24 @@ function onClick(event) {
 
 // Teclas 1 a 5: cámara en Preview. CUT y AUTO no tienen atajo a propósito:
 // una tecla pulsada por error no debe cambiar lo que está al aire.
+const TAB_KEYS = { ArrowLeft: -1, ArrowRight: 1, Home: -Infinity, End: Infinity };
+
+function moveTab(event) {
+  const tabs = [...els.tabs.querySelectorAll('.tab')];
+  const index = tabs.indexOf(event.target);
+  const step = TAB_KEYS[event.key];
+  const next = Number.isFinite(step) ? (index + step + tabs.length) % tabs.length : step < 0 ? 0 : tabs.length - 1;
+  event.preventDefault();
+  selectTab(tabs[next].dataset.tab);
+  tabs[next].focus();
+}
+
 function onKeyDown(event) {
   if (els.dialog.open || event.metaKey || event.ctrlKey || event.altKey) return;
+  if (event.target.closest('.tab') && Object.hasOwn(TAB_KEYS, event.key)) {
+    moveTab(event);
+    return;
+  }
   if (event.target.closest('input, select, textarea')) return;
   const cam = { 1: '1', 2: '2', 3: '3', 4: '4', 5: 'aux' }[event.key];
   if (cam) selectPreview(cam);
@@ -731,6 +844,20 @@ setupTbar();
 document.addEventListener('click', onClick);
 document.addEventListener('keydown', onKeyDown);
 els.form.addEventListener('submit', saveSettings);
+// El vidrio se ilumina desde el punto donde se presiona.
+document.addEventListener(
+  'pointerdown',
+  (event) => {
+    const target = event.target.closest('.capsule-btn, .icon-btn, button.status, .close-btn');
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    target.style.setProperty('--glow-x', `${(event.clientX - rect.left).toFixed(0)}px`);
+    target.style.setProperty('--glow-y', `${(event.clientY - rect.top).toFixed(0)}px`);
+  },
+  { passive: true },
+);
+// La apariencia se aplica al instante, como en los ajustes de macOS.
+for (const input of els.appearance) input.addEventListener('change', () => send('setAppearance', input.value));
 
 try {
   const saved = localStorage.getItem(TAB_KEY);

@@ -14,7 +14,7 @@ Conecta el Tenveo PC500 a tu Mac por **Ethernet** (misma red) o con un **cable d
 ./start_app.sh
 ```
 
-También puedes instalar `TenveoStudio-1.3.0-universal.dmg` (se genera con `npm run dist` en `tenveo_electron/`) y abrir **Tenveo Studio** con doble clic. La app funciona en Macs Intel y Apple Silicon.
+También puedes instalar `TenveoStudio-1.4.0-universal.dmg` (se genera con `npm run dist` en `tenveo_electron/`) y abrir **Tenveo Studio** con doble clic. La app funciona en Macs Intel y Apple Silicon.
 
 La app se encarga sola de:
 1. Encontrar el PC500 en la red, también por cable directo (IPv6 de enlace local).
@@ -54,7 +54,11 @@ La app se encarga sola de:
 * **SYNC OBS:** al cambiar de cámara en el PC500, cambia la escena correspondiente en OBS.
 * **Live, Rec y Vcam**, y selector de escenas.
 
-### 7. Modo Demo
+### 7. Diseño al estilo de Apple
+* Sigue las Human Interface Guidelines (sistema 26): colores de sistema, tipografía SF, geometría concéntrica, controles de vidrio y animaciones con springs.
+* Apariencia clara u oscura (sigue a macOS o se fija en Ajustes), más contraste, transparencia reducida y Reducir movimiento. La especificación está en [tenveo_electron/DISENO.md](tenveo_electron/DISENO.md).
+
+### 8. Modo Demo
 * Agrega `?demo` a la dirección de la versión web para usar la consola con simuladores del PC500 y de OBS, desde cualquier dispositivo o un Codespace.
 
 ---
