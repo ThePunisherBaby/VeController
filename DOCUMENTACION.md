@@ -224,7 +224,7 @@ Cliente del protocolo **OBS WebSocket v5** (por defecto `ws://127.0.0.1:4455`):
 ### 4.7 Interfaz
 - Barra superior: estado del PC500 con su latencia, estado de OBS, salidas de OBS (Live, Rec, Vcam), SYNC OBS y ajustes.
 - Monitores: el PGM, con el video en vivo del PC500, ocupa dos tercios en 16:9; el PVW, que no lleva video, es una tarjeta de la misma altura con la cámara en Preview. Los monitores se dimensionan por su ancho y la consola se queda con el resto de la altura, así no quedan franjas vacías.
-- Consola: buses Program y Preview y capas en dos filas como en el equipo, en una grilla de 7 columnas compartida (las teclas llenan el ancho y quedan alineadas), CUT, AUTO, FTB y una T-Bar que usa toda la altura de la consola.
+- Consola: buses Program y Preview y capas en dos filas como en el equipo, en una grilla de 7 columnas compartida (las teclas llenan el ancho y quedan alineadas), CUT y AUTO juntos arriba, FTB aparte abajo (para no pulsarlo sin querer) y una T-Bar que usa toda la altura de la consola.
 - Sin conexión con el PC500, la consola, el mezclador y los botones del equipo quedan atenuados.
 - Los avisos aparecen arriba, sobre los monitores, sin tapar controles.
 - Barra lateral con pestañas: **Audio** (mezclador), **OBS** (escenas) y **Equipo** (datos del PC500, STREAM, REC y demás botones del equipo, y estado del video con Encender y Apagar STREAM).
@@ -247,7 +247,7 @@ npm run smoke        # abre la app contra simuladores, pulsa botones y guarda un
 npm run smoke:web    # lo mismo en modo navegador (SMOKE_WEB_DEMO=1 para el modo demo)
 npm run smoke:video  # la app enciende STREAM, toma el video de un servidor RTMP de prueba, lo dibuja y lo apaga
 npm run mock         # simuladores del PC500 y de OBS para trabajar sin el equipo
-node scripts/screenshots.mjs [carpeta]   # capturas de cada pestaña, ajustes, sin conexión y tamaño mínimo
+node scripts/screenshots.mjs [carpeta] [--solo 1,7]   # capturas de cada pestaña, ajustes, sin conexión, tamaño mínimo, 1920×1080 y pantalla 5K
 
 # Mediciones (abren la ventana de la app unos segundos):
 node scripts/bench-video.mjs                         # video 1080p60: latencia, cuadros perdidos, tirones, clic y CPU

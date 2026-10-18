@@ -654,14 +654,18 @@ html[data-connected="false"] .panel[data-panel="device"] .keys {
 .trans-keys {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   gap: 8px;
 }
 
 .key--trans {
-  width: 84px;
-  height: 46px;
+  width: clamp(84px, 6vw, 108px);
+  height: clamp(46px, 6.6vh, 68px);
   font-size: 13px;
+}
+
+/* FTB va aparte, abajo: lejos de CUT y AUTO para no pulsarlo sin querer. */
+.key--trans[data-action="ftb"] {
+  margin-top: auto;
 }
 
 .key--trans.is-program {

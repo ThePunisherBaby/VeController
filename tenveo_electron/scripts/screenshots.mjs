@@ -3,7 +3,7 @@
 // y la ventana en su tamaño mínimo. Usa los simuladores del PC500 y de OBS, un
 // servidor RTMP de prueba y el emisor de prueba, como npm run smoke:video.
 //
-// Uso: node scripts/screenshots.mjs [carpeta]   (por defecto, una carpeta temporal)
+// Uso: node scripts/screenshots.mjs [carpeta] [--solo 7,8]   (por defecto, una carpeta temporal)
 // Con TENVEO_SMOKE_APP se captura una app empaquetada.
 
 import { spawn } from 'node:child_process';
@@ -18,7 +18,10 @@ import { startMockObs } from '../dev/mock-obs.js';
 import { startMockPc500 } from '../dev/mock-pc500.js';
 
 const projectDir = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
-const outDir = path.resolve(process.argv[2] || (await fs.mkdtemp(path.join(os.tmpdir(), 'tenveo-capturas-'))));
+const soloIndex = process.argv.indexOf('--solo');
+const only = soloIndex > -1 ? String(process.argv[soloIndex + 1] ?? '').split(',') : null;
+const folder = process.argv.slice(2).find((arg, i, list) => !arg.startsWith('--') && list[i - 1] !== '--solo');
+const outDir = path.resolve(folder || (await fs.mkdtemp(path.join(os.tmpdir(), 'tenveo-capturas-'))));
 await fs.mkdir(outDir, { recursive: true });
 
 function freePort() {
@@ -66,9 +69,12 @@ const STATES = [
   { name: '4-ajustes', clicks: ['[data-action="open-settings"]'], video: true },
   { name: '5-minimo', clicks: ['[data-action="tab"][data-tab="audio"]'], video: true, size: '1180x740' },
   { name: '6-sin-conexion', clicks: [], video: false, offline: true },
+  { name: '7-1920', clicks: ['[data-action="tab"][data-tab="audio"]'], video: true, size: '1920x1080' },
+  { name: '8-pantalla-5k', clicks: ['[data-action="tab"][data-tab="device"]'], video: true, size: '2560x1415' },
 ];
 
 for (const state of STATES) {
+  if (only && !only.some((prefix) => state.name.startsWith(prefix))) continue;
   const userData = await fs.mkdtemp(path.join(os.tmpdir(), 'tenveo-capturas-data-'));
   const shot = path.join(outDir, `${state.name}.png`);
   const child = spawn(appCommand, packaged ? [] : [projectDir], {

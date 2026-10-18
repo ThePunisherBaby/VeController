@@ -16,7 +16,7 @@ Este documento detalla el estado actual del proyecto, las funciones implementada
 - [x] **Conmutación básica en vivo:** Selección de cámaras (1, 2, 3, 4, AUX) en Preview, transiciones CUT, AUTO y FTB (Fade to Black).
 - [x] **Sincronización bidireccional:** Cambios reflejados en LEDs físicos y en la interfaz en tiempo real.
 - [x] **Migración a Electron:** Consola completa en [`tenveo_electron/`](tenveo_electron/).
-- [x] **Interfaz minimalista:** PGM grande en 16:9 y PVW como tarjeta, consola en grilla que llena el ancho, barra lateral con pestañas de Audio, OBS y Equipo. Revisada con capturas en cada estado y en el tamaño mínimo (`scripts/screenshots.mjs`).
+- [x] **Interfaz minimalista:** PGM grande en 16:9 y PVW como tarjeta, consola en grilla que llena el ancho, barra lateral con pestañas de Audio, OBS y Equipo. Revisada con capturas en cada estado, en el tamaño mínimo, en 1920×1080 y en una pantalla 5K (`scripts/screenshots.mjs`).
 - [x] **Comunicación por red optimizada:** una sola ruta por red; búsqueda automática del PC500 (IPv4 e IPv6); latido cada segundo con latencia visible; corte detectado en 3,5 s; reintentos de 250 ms a 2 s. **Probado con el PC500 real** por cable directo, con mediciones contra la 1.0.0 (DOCUMENTACION.md, sección 8).
 - [x] **Cable directo PC500 ↔ Mac:** control por IPv6 de enlace local y video por adb en red, sin configurar la red de la Mac. **Probado con el PC500 real.**
 - [x] **Fluidez (1.3.0):** GPU recuperada (Electron 43), monitor PGM en un worker con WebCodecs, interfaz que solo toca el DOM donde algo cambió, Preview marcado en el mismo cuadro del clic. Medido con `bench-video` (DOCUMENTACION.md, sección 8).
