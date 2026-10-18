@@ -11,6 +11,7 @@ export async function connectBackend() {
       getState: () => bridge.getState(),
       send: (type, ...args) => bridge.send(type, ...args),
       onState: (callback) => bridge.onState(callback),
+      onMenu: (callback) => bridge.onMenu?.(callback),
     };
   }
   const { createLocalBackend } = await import('./local-backend.js');

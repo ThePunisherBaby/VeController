@@ -2,6 +2,7 @@
 // abre la página como un navegador común, pulsa botones y revisa los comandos.
 // Uso: npm run smoke:web [-- ruta/de/la/captura.png]
 // Con SMOKE_WEB_DEMO=1 prueba el modo demo (?demo), sin simuladores por red.
+// Con SMOKE_WEB_SIZE=390x844 la página se abre del tamaño de un teléfono.
 
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
@@ -55,6 +56,7 @@ const child = spawn(electronPath, [path.join(projectDir, 'dev', 'web-capture.mjs
     WEB_CAPTURE_URL: url,
     WEB_CAPTURE_OUT: out,
     WEB_CAPTURE_CLICKS: ['[data-action="pvw-select"][data-cam="4"]', '[data-action="auto"]'].join('|'),
+    ...(process.env.SMOKE_WEB_SIZE ? { WEB_CAPTURE_SIZE: process.env.SMOKE_WEB_SIZE } : {}),
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });

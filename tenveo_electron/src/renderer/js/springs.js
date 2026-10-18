@@ -61,8 +61,8 @@ export class SpringValue {
     return { value: this.target + y, velocity: v };
   }
 
-  retarget(target, now, params = this.params) {
-    const { value, velocity } = this.sample(now);
+  retarget(target, now, params = this.params, velocity = this.sample(now).velocity) {
+    const { value } = this.sample(now);
     this.params = params;
     this.target = target;
     this.t0 = now;
@@ -82,6 +82,14 @@ export class SpringValue {
     const { value, velocity } = this.sample(now);
     return Math.abs(value - this.target) < epsilon && Math.abs(velocity) < velocityEpsilon;
   }
+}
+
+/**
+ * Banda elástica de UIScrollView (c = 0,55): cuánto se ve un desplazamiento x
+ * más allá del límite, en un contenedor de tamaño dimension. Nunca pasa de él.
+ */
+export function rubberBand(x, dimension, c = 0.55) {
+  return (1 - 1 / ((x * c) / dimension + 1)) * dimension;
 }
 
 /** Posición normalizada de 0 a 1 en el instante t, partiendo de reposo. */

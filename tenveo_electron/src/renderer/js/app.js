@@ -12,7 +12,8 @@ import {
   clamp01,
 } from '../../core/pc500-protocol.js';
 import { connectBackend } from './backend.js';
-import { SpringValue, fromDurationBounce } from './springs.js';
+import { createIsland } from './island.js';
+import { SpringValue, fromDurationBounce, rubberBand } from './springs.js';
 import { createPgmVideo } from './video.js';
 
 const $ = (id) => document.getElementById(id);
@@ -66,6 +67,7 @@ const els = {
   form: $('settings-form'),
   fieldIp: $('field-ip'),
   discoverBtn: $('discover-btn'),
+  discoverRow: $('discover-row'),
   discovery: $('discovery'),
   adbText: $('adb-text'),
   fieldObsHost: $('field-obs-host'),
@@ -76,7 +78,6 @@ const els = {
   settingsError: $('settings-error'),
   appearance: document.querySelectorAll('input[name="appearance"]'),
   tabs: document.querySelector('.tabs'),
-  toast: $('toast'),
 };
 
 const root = document.documentElement;
@@ -85,6 +86,18 @@ root.dataset.platform = backend.kind;
 // En la Mac la barra de la app hace de barra de título y deja lugar a los semáforos.
 root.dataset.os = /Mac/.test(navigator.platform) ? 'mac' : 'other';
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+
+// La isla de la barra: el estado del PC500 y de OBS, y los avisos que salen de ella.
+const island = createIsland({
+  island: $('island'),
+  status: $('island-status'),
+  message: $('island-message'),
+  text: $('island-text'),
+  icon: $('island-icon'),
+  reducedMotion,
+});
+// Para las pruebas y para revisar el morph en cámara lenta (tenveoTimeScale).
+globalThis.tenveoIsland = island;
 
 let snapshot = null;
 let renderQueued = false;
@@ -121,27 +134,38 @@ const camName = (id) => (id ? (camById.get(String(id))?.name ?? `CAM ${id}`) : '
 
 // --- Comandos y avisos ---
 
-// El aviso entra desde arriba con un spring y sale por el mismo camino (CSS).
-let toastTimer = 0;
-function showToast(message) {
-  if (!message) return;
-  els.toast.hidden = false;
-  els.toast.dataset.state = 'open';
-  els.toast.textContent = message;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    els.toast.dataset.state = 'closed';
-  }, 4500);
+// Los avisos salen de la isla: info, success o error elige el ícono.
+function showToast(message, kind = 'info') {
+  island.show(message, kind);
+}
+
+// Rodillo de dígitos, como numericText: solo rueda el dígito que cambió.
+function setRollingText(element, text) {
+  const value = String(text);
+  const previous = element.dataset.value;
+  if (previous === value) return;
+  element.dataset.value = value;
+  if (previous === undefined || reducedMotion.matches || previous.length !== value.length) {
+    element.textContent = value;
+    return;
+  }
+  const digits = [...value].map((char, i) => {
+    const span = document.createElement('span');
+    span.className = char !== previous[i] && /\d/.test(char) ? 'roll roll-in' : 'roll';
+    span.textContent = char;
+    return span;
+  });
+  element.replaceChildren(...digits);
 }
 
 async function send(type, ...args) {
   try {
     const response = await backend.send(type, ...args);
-    if (response && response.ok === false) showToast(response.error);
+    if (response && response.ok === false) showToast(response.error, 'error');
     return response;
   } catch (error) {
     const message = String(error?.message ?? error);
-    showToast(message);
+    showToast(message, 'error');
     return { ok: false, error: message };
   }
 }
@@ -274,19 +298,26 @@ const TBAR_SETTLE_MS = 400;
 // redirigir sin saltos.
 const TBAR_SPRING = fromDurationBounce(0.3, 0);
 const tbarSpring = { value: null, frame: 0 };
+// Pasado un extremo, la manija resiste como una banda elástica y al soltarla
+// vuelve con la velocidad que traía. Es solo visual: el valor enviado al
+// equipo nunca pasa de 0 a 255.
+const TBAR_STRETCH = 36;
+const TBAR_RETURN = fromDurationBounce(0.5, 0);
+const tbarBand = { overshoot: 0, velocity: 0, at: 0, frame: 0 };
 
 function tbarTravel() {
   // La manija está a 3 px de cada borde del riel.
   return Math.max(1, els.tbarTrack.clientHeight - els.tbarHandle.offsetHeight - 6);
 }
 
-function paintTbar(pos, force = false) {
+function paintTbar(pos, force = false, overshoot = 0) {
   const travel = tbarTravel();
-  if (!force && pos === tbarState.pos && travel === tbarState.travel) return;
+  if (!force && pos === tbarState.pos && travel === tbarState.travel && overshoot === tbarBand.overshoot) return;
   tbarState.pos = pos;
   tbarState.travel = travel;
+  tbarBand.overshoot = overshoot;
   // translate y no transform: así la escala de "elevarse" no corre la manija.
-  els.tbarHandle.style.translate = `0 ${(pos * travel).toFixed(1)}px`;
+  els.tbarHandle.style.translate = `0 ${(pos * travel + overshoot).toFixed(1)}px`;
   els.tbarFill.style.height = `${Math.max(0, pos * travel).toFixed(1)}px`;
   const percent = Math.round(clamp01(pos) * 100);
   setText(els.tbarValue, `${percent}%`);
@@ -296,7 +327,33 @@ function paintTbar(pos, force = false) {
 
 function stopTbarSpring() {
   cancelAnimationFrame(tbarSpring.frame);
+  cancelAnimationFrame(tbarBand.frame);
   tbarSpring.frame = 0;
+  tbarBand.frame = 0;
+}
+
+// Devuelve la manija desde la banda elástica hasta el extremo, con su velocidad.
+function releaseTbarBand() {
+  if (!tbarBand.overshoot) return;
+  if (reducedMotion.matches) {
+    paintTbar(tbarState.pos, true, 0);
+    return;
+  }
+  const start = performance.now() / 1000;
+  const spring = new SpringValue(tbarBand.overshoot, TBAR_RETURN);
+  spring.set(tbarBand.overshoot, start);
+  spring.retarget(0, start, TBAR_RETURN, tbarBand.velocity);
+  const step = (ms) => {
+    const now = ms / 1000;
+    if (spring.isSettled(now, 0.2, 2)) {
+      tbarBand.frame = 0;
+      paintTbar(tbarState.pos, true, 0);
+      return;
+    }
+    paintTbar(tbarState.pos, true, spring.sample(now).value);
+    tbarBand.frame = requestAnimationFrame(step);
+  };
+  tbarBand.frame = requestAnimationFrame(step);
 }
 
 function stepTbarSpring(ms) {
@@ -359,10 +416,17 @@ function setupTbar() {
 
   els.tbarHandle.addEventListener('pointermove', (event) => {
     if (!tbarState.dragging || event.pointerId !== tbarState.pointerId) return;
-    const pos = clamp01(tbarState.startPos + (event.clientY - tbarState.startY) / tbarTravel());
-    if (pos === tbarState.pos) return;
-    paintTbar(pos);
-    queueTbar(pos);
+    const travel = tbarTravel();
+    const raw = tbarState.startPos + (event.clientY - tbarState.startY) / travel;
+    const pos = clamp01(raw);
+    const beyond = (raw - pos) * travel;
+    const overshoot = beyond ? Math.sign(beyond) * rubberBand(Math.abs(beyond), TBAR_STRETCH) : 0;
+    const dt = (event.timeStamp - tbarBand.at) / 1000;
+    if (dt > 0) tbarBand.velocity = (overshoot - tbarBand.overshoot) / dt;
+    tbarBand.at = event.timeStamp;
+    const changed = pos !== tbarState.pos;
+    paintTbar(pos, false, overshoot);
+    if (changed) queueTbar(pos);
   });
 
   const endDrag = (event) => {
@@ -372,6 +436,7 @@ function setupTbar() {
     tbarState.releasedAt = performance.now();
     els.tbar.classList.remove('is-dragging');
     flushTbar();
+    releaseTbarBand();
   };
   els.tbarHandle.addEventListener('pointerup', endDrag);
   els.tbarHandle.addEventListener('pointercancel', endDrag);
@@ -439,6 +504,7 @@ function renderTopbar(sw, obs, settings, extras) {
   setRootData('appearance', settings.appearance || 'system');
   setRootData('fullscreen', String(Boolean(extras?.window?.fullscreen)));
   setText(els.hwText, connectionText(sw));
+  // La latencia cambia cada segundo: sin rodillo, para no animar la barra sin parar.
   setText(els.hwLatency, connected && Number.isFinite(sw.latencyMs) ? `${sw.latencyMs} ms` : '');
   els.hw.title = [connected ? sw.endpoint : sw.lastError, videoRouteSummary(extras?.adb)].filter(Boolean).join('\n');
   setHidden(els.demoTag, !extras?.demo);
@@ -604,8 +670,8 @@ function renderDevice(sw, settings, extras) {
   setText(els.factLatency, connected && Number.isFinite(sw.latencyMs) ? `${sw.latencyMs} ms` : '—');
   setText(els.factIp, sw.device?.ip || (isIPv6(settings.ethernetIp) ? 'IPv6 directo' : settings.ethernetIp) || '—');
   setText(els.factVersion, sw.device?.version || '—');
-  setText(els.streamTime, sw.device?.streamTime || '—');
-  setText(els.recordTime, sw.device?.recordTime || '—');
+  setRollingText(els.streamTime, sw.device?.streamTime || '—');
+  setRollingText(els.recordTime, sw.device?.recordTime || '—');
 
   const dv = extras?.deviceVideo;
   setHidden(els.videoActions, backend.kind !== 'electron');
@@ -628,7 +694,7 @@ function renderDialog(sw, settings, extras) {
 }
 
 function renderDiscovery(discovery) {
-  els.discoverBtn.hidden = backend.kind !== 'electron';
+  setHidden(els.discoverRow, backend.kind !== 'electron');
   if (!discovery || discovery.state === 'idle') {
     els.discovery.hidden = true;
     return;
@@ -721,7 +787,7 @@ function openSettings(trigger) {
   els.fieldObsHost.value = settings.obsHost || '';
   els.fieldObsPort.value = String(settings.obsPort || '');
   els.fieldObsPass.value = '';
-  els.fieldObsPass.placeholder = settings.hasObsPassword ? 'Guardada. Escribe otra para cambiarla.' : 'Sin contraseña';
+  els.fieldObsPass.placeholder = settings.hasObsPassword ? 'Guardada' : 'Sin contraseña';
   els.fieldObsClear.checked = false;
   els.fieldObsClearRow.hidden = !settings.hasObsPassword;
   showFormError('');
@@ -770,7 +836,7 @@ async function openOriginalPanel() {
 async function useDiscoveredIp(ip) {
   els.fieldIp.value = ip;
   const response = await send('saveSettings', { ethernetIp: ip });
-  if (response?.ok) showToast(`Conectando con el PC500 en ${ip}`);
+  if (response?.ok) showToast(`Conectando con el PC500 en ${ip}`, 'info');
 }
 
 // --- Eventos ---
@@ -797,7 +863,7 @@ const ACTIONS = {
   'use-ip': (t) => useDiscoveredIp(t.dataset.ip),
   'start-device-stream': async () => {
     const response = await send('startDeviceStream');
-    if (response?.ok) showToast(response.result.started ? 'STREAM encendido: el video llega en un momento.' : 'STREAM ya estaba encendido.');
+    if (response?.ok) showToast(response.result.started ? 'STREAM encendido: el video llega en un momento.' : 'STREAM ya estaba encendido.', 'success');
   },
   'stop-device-stream': () => send('stopDeviceStream'),
 };
@@ -858,6 +924,10 @@ document.addEventListener(
 );
 // La apariencia se aplica al instante, como en los ajustes de macOS.
 for (const input of els.appearance) input.addEventListener('change', () => send('setAppearance', input.value));
+// Tenveo Studio › Ajustes… (⌘,) en el menú de la Mac.
+backend.onMenu?.((action) => {
+  if (action === 'open-settings' && !els.dialog.open) openSettings(document.querySelector('.icon-btn[data-action="open-settings"]'));
+});
 
 try {
   const saved = localStorage.getItem(TAB_KEY);

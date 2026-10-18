@@ -30,10 +30,13 @@ const SUMMARY = `(() => ({
   demoTag: !document.getElementById('demo-tag').hidden,
 }))()`;
 
+// WEB_CAPTURE_SIZE cambia el tamaño, por ejemplo 390x844 para un teléfono.
+const [width, height] = String(process.env.WEB_CAPTURE_SIZE || '1440x900').split('x').map(Number);
+
 app.whenReady().then(async () => {
   const win = new BrowserWindow({
-    width: 1440,
-    height: 900,
+    width,
+    height,
     show: false,
     backgroundColor: '#101216',
     webPreferences: { contextIsolation: true, sandbox: true },

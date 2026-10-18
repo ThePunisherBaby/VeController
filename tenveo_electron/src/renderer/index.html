@@ -11,52 +11,65 @@
 </head>
 <body>
   <svg class="sprite" aria-hidden="true" focusable="false">
+    <defs>
+      <clipPath id="brand-clip"><rect width="20" height="20" rx="5.4"/></clipPath>
+    </defs>
+    <!-- Marca: el ícono de la app en pequeño. Una cortina (wipe) entre PGM y PVW. -->
+    <symbol id="i-brand" viewBox="0 0 20 20"><g clip-path="url(#brand-clip)"><path d="M0 0H20V20H0Z" fill="#30d158"/><path d="M0 0H20L0 20Z" fill="#ff453a"/></g><path d="M15.6 4.4 4.4 15.6" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="10" r="2.2" fill="#fff"/></symbol>
     <symbol id="i-gear" viewBox="0 0 24 24"><path d="M9.93 5L10.23 2.46A9.7 9.7 0 0 1 13.77 2.46L14.07 5A7.3 7.3 0 0 1 15.48 5.58L17.49 4.01A9.7 9.7 0 0 1 19.99 6.51L18.42 8.52A7.3 7.3 0 0 1 19 9.93L21.54 10.23A9.7 9.7 0 0 1 21.54 13.77L19 14.07A7.3 7.3 0 0 1 18.42 15.48L19.99 17.49A9.7 9.7 0 0 1 17.49 19.99L15.48 18.42A7.3 7.3 0 0 1 14.07 19L13.77 21.54A9.7 9.7 0 0 1 10.23 21.54L9.93 19A7.3 7.3 0 0 1 8.52 18.42L6.51 19.99A9.7 9.7 0 0 1 4.01 17.49L5.58 15.48A7.3 7.3 0 0 1 5 14.07L2.46 13.77A9.7 9.7 0 0 1 2.46 10.23L5 9.93A7.3 7.3 0 0 1 5.58 8.52L4.01 6.51A9.7 9.7 0 0 1 6.51 4.01L8.52 5.58A7.3 7.3 0 0 1 9.93 5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
     <symbol id="i-sync" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 0 1-12.9 5.2M4.5 12a7.5 7.5 0 0 1 12.9-5.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M17.6 2.8v4.1h-4.1M6.4 21.2v-4.1h4.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-    <symbol id="i-live" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M8.3 8.3a5.2 5.2 0 0 0 0 7.4M15.7 8.3a5.2 5.2 0 0 1 0 7.4M5.5 5.5a9.2 9.2 0 0 0 0 13M18.5 5.5a9.2 9.2 0 0 1 0 13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
-    <symbol id="i-rec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="4.2" fill="currentColor"/></symbol>
-    <symbol id="i-vcam" viewBox="0 0 24 24"><rect x="2.8" y="6.8" width="12.4" height="10.4" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m15.2 11 5.6-3.3v8.6L15.2 13z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
     <symbol id="i-camera" viewBox="0 0 24 24"><rect x="2.8" y="6.8" width="12.4" height="10.4" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="m15.2 11 5.6-3.3v8.6L15.2 13z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
-    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m15.5 15.5 4.7 4.7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
-    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-    <symbol id="i-xmark" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m15.5 15.5 4.7 4.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-xmark" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.2" fill="currentColor"/><path d="M12 11v6" stroke="#000" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7.6" r="1.25" fill="#000"/></symbol>
+    <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.2" fill="currentColor"/><path d="m8 12.4 2.7 2.7L16.2 9.3" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.2" fill="currentColor"/><path d="M12 7v6.2" stroke="#000" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="16.6" r="1.25" fill="#000"/></symbol>
   </svg>
 
   <div class="app">
     <!-- Barra de herramientas: en la app de escritorio también es la barra de
-         título, con los semáforos de macOS a la izquierda. -->
+         título, con los semáforos de macOS a la izquierda. Al centro, la isla. -->
     <header class="toolbar">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true"></span>
+      <div class="toolbar-lead">
+        <svg class="brand-mark" aria-hidden="true"><use href="#i-brand"/></svg>
         <h1 class="brand-name">Tenveo Studio</h1>
+        <span class="demo-tag" id="demo-tag" title="Modo demo: el PC500 y OBS son simuladores dentro de la página" hidden>Demo</span>
       </div>
-      <div class="glass capsule status-capsule">
-        <button class="status" id="hw-status" type="button" data-action="open-settings" title="Conexión con el PC500">
-          <span class="dot" aria-hidden="true"></span>
-          <span class="status-label">PC500</span>
-          <span class="status-text" id="hw-text">Buscando…</span>
-          <span class="status-meta" id="hw-latency"></span>
+
+      <div class="island" id="island">
+        <div class="island-status" id="island-status">
+          <button class="status" id="hw-status" type="button" data-action="open-settings" title="Conexión con el PC500">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="status-label">PC500</span>
+            <span class="status-text" id="hw-text">Buscando…</span>
+            <span class="status-meta" id="hw-latency"></span>
+          </button>
+          <span class="island-divider" aria-hidden="true"></span>
+          <span class="status" id="obs-pill" title="Conexión con OBS Studio">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="status-label">OBS</span>
+            <span class="status-text" id="obs-pill-text">Sin conexión</span>
+          </span>
+        </div>
+        <div class="island-message" id="island-message" role="status" aria-live="polite">
+          <svg class="island-icon" id="island-icon" aria-hidden="true"><use href="#i-info"/></svg>
+          <span class="island-text" id="island-text"></span>
+        </div>
+      </div>
+
+      <div class="toolbar-trail">
+        <div class="capsule segment-capsule" role="group" aria-label="Salidas de OBS">
+          <button class="capsule-btn" id="obs-stream" type="button" data-action="obs-stream" aria-pressed="false" title="Transmisión de OBS">Live</button>
+          <button class="capsule-btn" id="obs-record" type="button" data-action="obs-record" aria-pressed="false" title="Grabación de OBS">Rec</button>
+          <button class="capsule-btn capsule-btn--blue" id="obs-vcam" type="button" data-action="obs-vcam" aria-pressed="false" title="Cámara virtual de OBS">Vcam</button>
+        </div>
+        <button class="capsule capsule-btn sync-btn" id="sync-toggle" type="button" data-action="toggle-sync" aria-pressed="true" title="Cambiar la escena de OBS al cambiar la cámara al aire">
+          <svg class="icon" aria-hidden="true"><use href="#i-sync"/></svg>Sync OBS
         </button>
-        <span class="capsule-divider" aria-hidden="true"></span>
-        <span class="status" id="obs-pill" title="Conexión con OBS Studio">
-          <span class="dot" aria-hidden="true"></span>
-          <span class="status-label">OBS</span>
-          <span class="status-text" id="obs-pill-text">Sin conexión</span>
-        </span>
+        <button class="capsule icon-btn" type="button" data-action="open-settings" aria-label="Ajustes" title="Ajustes (⌘,)">
+          <svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg>
+        </button>
       </div>
-      <span class="demo-tag" id="demo-tag" title="Modo demo: el PC500 y OBS son simuladores dentro de la página" hidden>Demo · simulador</span>
-      <span class="spacer"></span>
-      <div class="glass capsule segment-capsule" role="group" aria-label="Salidas de OBS">
-        <button class="capsule-btn" id="obs-stream" type="button" data-action="obs-stream" aria-pressed="false" title="Transmisión de OBS"><svg class="icon" aria-hidden="true"><use href="#i-live"/></svg>Live</button>
-        <button class="capsule-btn" id="obs-record" type="button" data-action="obs-record" aria-pressed="false" title="Grabación de OBS"><svg class="icon" aria-hidden="true"><use href="#i-rec"/></svg>Rec</button>
-        <button class="capsule-btn capsule-btn--blue" id="obs-vcam" type="button" data-action="obs-vcam" aria-pressed="false" title="Cámara virtual de OBS"><svg class="icon" aria-hidden="true"><use href="#i-vcam"/></svg>Vcam</button>
-      </div>
-      <button class="glass capsule capsule-btn sync-btn" id="sync-toggle" type="button" data-action="toggle-sync" aria-pressed="true" title="Cambiar la escena de OBS al cambiar la cámara al aire">
-        <svg class="icon" aria-hidden="true"><use href="#i-sync"/></svg>Sync OBS
-      </button>
-      <button class="glass capsule icon-btn" type="button" data-action="open-settings" aria-label="Ajustes" title="Ajustes">
-        <svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg>
-      </button>
     </header>
 
     <main class="workspace">
@@ -166,8 +179,8 @@
             <h2 class="section-title">Transmisión y grabación</h2>
             <div class="keys keys--grid keys--4" id="device-main"></div>
             <div class="timers">
-              <span>Stream <b id="stream-time">—</b></span>
-              <span>Rec <b id="record-time">—</b></span>
+              <span>Stream <b class="rolling" id="stream-time">—</b></span>
+              <span>Rec <b class="rolling" id="record-time">—</b></span>
             </div>
           </div>
           <div class="section">
@@ -187,6 +200,8 @@
     </main>
   </div>
 
+  <!-- Ajustes, con la forma de Ajustes del Sistema: grupos de filas con la
+       etiqueta a la izquierda y el control a la derecha. -->
   <dialog class="dialog" id="settings-dialog" aria-labelledby="settings-title">
     <form class="dialog-form" id="settings-form" novalidate>
       <header class="dialog-head">
@@ -194,66 +209,80 @@
         <button class="close-btn" type="button" data-action="close-settings" aria-label="Cerrar"><svg class="icon" aria-hidden="true"><use href="#i-xmark"/></svg></button>
       </header>
 
-      <section class="dialog-section">
-        <h3 class="section-title">PC500</h3>
-        <p class="hint">Todo va por la red: control y video. Con un cable directo entre el PC500 y la Mac, "Buscar en la red" lo encuentra solo.</p>
-        <div class="field-row">
-          <label class="field">
-            <span>IP del PC500 en la red</span>
-            <input id="field-ip" name="ethernetIp" type="text" inputmode="decimal" placeholder="192.168.1.188" autocomplete="off" spellcheck="false">
+      <section class="form-section">
+        <h3 class="form-header">PC500</h3>
+        <div class="form-group">
+          <label class="form-row">
+            <span class="form-label">IP en la red</span>
+            <input class="form-input" id="field-ip" name="ethernetIp" type="text" inputmode="decimal" placeholder="Se busca sola" autocomplete="off" spellcheck="false">
           </label>
-          <button class="btn" type="button" data-action="discover" id="discover-btn"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>Buscar en la red</button>
+          <div class="form-row" id="discover-row">
+            <span class="form-label">Buscar el PC500 en la red</span>
+            <button class="btn btn--small" type="button" data-action="discover" id="discover-btn"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>Buscar</button>
+          </div>
+          <div class="discovery" id="discovery" hidden></div>
+          <div class="form-row">
+            <span class="form-label">Conexión</span>
+            <span class="form-actions">
+              <button class="btn btn--small" type="button" data-action="reconnect">Reconectar</button>
+              <button class="btn btn--small" type="button" data-action="open-panel">Panel web</button>
+            </span>
+          </div>
         </div>
-        <div class="discovery" id="discovery" hidden></div>
-        <div class="button-row">
-          <button class="btn btn--small" type="button" data-action="reconnect">Reconectar</button>
-          <button class="btn btn--small" type="button" data-action="open-panel">Panel web del equipo</button>
-        </div>
-        <p class="hint" id="adb-text"></p>
+        <p class="form-footer">Todo va por la red: control y video. Con un cable directo entre el PC500 y la Mac, Buscar lo encuentra solo.</p>
+        <p class="form-footer" id="adb-text"></p>
       </section>
 
-      <section class="dialog-section">
-        <h3 class="section-title">OBS Studio</h3>
-        <div class="field-row">
-          <label class="field">
-            <span>Host</span>
-            <input id="field-obs-host" name="obsHost" type="text" placeholder="127.0.0.1" autocomplete="off" spellcheck="false">
+      <section class="form-section">
+        <h3 class="form-header">OBS Studio</h3>
+        <div class="form-group">
+          <label class="form-row">
+            <span class="form-label">Servidor</span>
+            <input class="form-input" id="field-obs-host" name="obsHost" type="text" placeholder="127.0.0.1" autocomplete="off" spellcheck="false">
           </label>
-          <label class="field field--port">
-            <span>Puerto</span>
-            <input id="field-obs-port" name="obsPort" type="number" min="1" max="65535" placeholder="4455">
+          <label class="form-row">
+            <span class="form-label">Puerto</span>
+            <input class="form-input form-input--short" id="field-obs-port" name="obsPort" type="number" min="1" max="65535" placeholder="4455">
+          </label>
+          <label class="form-row">
+            <span class="form-label">Contraseña</span>
+            <input class="form-input" id="field-obs-pass" name="obsPassword" type="password" autocomplete="off" placeholder="Sin contraseña">
+          </label>
+          <label class="form-row" id="field-obs-clear-row">
+            <span class="form-label">Quitar la contraseña guardada</span>
+            <input class="switch" id="field-obs-clear" name="clearObsPassword" type="checkbox" role="switch">
           </label>
         </div>
-        <label class="field">
-          <span>Contraseña</span>
-          <input id="field-obs-pass" name="obsPassword" type="password" autocomplete="off" placeholder="Sin contraseña">
-        </label>
-        <label class="check" id="field-obs-clear-row">
-          <input id="field-obs-clear" name="clearObsPassword" type="checkbox">
-          <span>Quitar la contraseña guardada</span>
-        </label>
       </section>
 
-      <section class="dialog-section">
-        <h3 class="section-title" id="appearance-title">Apariencia</h3>
-        <div class="segmented segmented--choice" role="radiogroup" aria-labelledby="appearance-title">
-          <span class="segmented-thumb" aria-hidden="true"></span>
-          <label class="segment"><input type="radio" name="appearance" value="system"><span>Automática</span></label>
-          <label class="segment"><input type="radio" name="appearance" value="dark"><span>Oscura</span></label>
-          <label class="segment"><input type="radio" name="appearance" value="light"><span>Clara</span></label>
+      <section class="form-section">
+        <h3 class="form-header" id="appearance-title">Apariencia</h3>
+        <div class="appearance" role="radiogroup" aria-labelledby="appearance-title">
+          <label class="appearance-option">
+            <input type="radio" name="appearance" value="light">
+            <span class="appearance-preview appearance-preview--light" aria-hidden="true"><span></span><span></span></span>
+            <span class="appearance-name">Clara</span>
+          </label>
+          <label class="appearance-option">
+            <input type="radio" name="appearance" value="dark">
+            <span class="appearance-preview appearance-preview--dark" aria-hidden="true"><span></span><span></span></span>
+            <span class="appearance-name">Oscura</span>
+          </label>
+          <label class="appearance-option">
+            <input type="radio" name="appearance" value="system">
+            <span class="appearance-preview appearance-preview--auto" aria-hidden="true"><span></span><span></span></span>
+            <span class="appearance-name">Automática</span>
+          </label>
         </div>
-        <p class="hint">Automática sigue la apariencia de macOS. Se aplica al instante.</p>
+        <p class="form-footer">Automática sigue la apariencia de macOS. Se aplica al instante.</p>
       </section>
 
       <p class="form-error" id="settings-error" role="alert" hidden></p>
       <footer class="dialog-actions">
-        <span class="spacer"></span>
         <button class="btn" type="button" data-action="close-settings">Cancelar</button>
         <button class="btn btn--primary" type="submit">Guardar y conectar</button>
       </footer>
     </form>
   </dialog>
-
-  <div class="toast" id="toast" role="status" hidden></div>
 </body>
 </html>

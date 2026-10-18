@@ -108,6 +108,8 @@ Son el **panel web que trae el firmware del PC500**, descargado del equipo. Sirv
 tenveo_electron/
 ├── package.json                    ← dependencias, scripts y configuración del empaquetado
 ├── DISENO.md                       ← sistema de diseño: tokens, capas, movimiento, accesibilidad y rendimiento
+├── PLAN_DISENO.md                  ← plan de la revisión 1.5.0: auditoría contra el prompt de Apple y momento firma
+├── build/icon.icns                 ← ícono de la app (npm run icon lo vuelve a dibujar)
 ├── src/
 │   ├── core/                       ← lógica compartida (Electron, navegador y pruebas)
 │   │   ├── pc500-protocol.js       ← claves del protocolo, lectura de estado y comandos
@@ -132,7 +134,8 @@ tenveo_electron/
 │       ├── styles/app.css          ← sistema de diseño: claro, oscuro y alto contraste (ver DISENO.md)
 │       └── js/
 │           ├── app.js              ← dibuja el estado y manda comandos
-│           ├── springs.js          ← física de springs de Apple (curvas CSS y la T-Bar)
+│           ├── springs.js          ← física de springs de Apple (curvas CSS, la T-Bar y la banda elástica)
+│           ├── island.js           ← la isla: el estado de la barra que se transforma en los avisos
 │           ├── video.js            ← arranca el monitor PGM y muestra sus avisos
 │           ├── pgm-worker.js       ← monitor PGM: decodifica con WebCodecs y dibuja en un canvas
 │           ├── backend.js          ← elige Electron o navegador
@@ -225,15 +228,23 @@ Cliente del protocolo **OBS WebSocket v5** (por defecto `ws://127.0.0.1:4455`):
 
 ### 4.7 Interfaz
 
-El diseño sigue las Human Interface Guidelines de Apple (sistema 26). La especificación completa está en [DISENO.md](tenveo_electron/DISENO.md): tokens, mapa de capas, estados, movimiento, accesibilidad y mediciones.
+El diseño sigue las Human Interface Guidelines de Apple (sistema 26). La especificación completa está en [DISENO.md](tenveo_electron/DISENO.md): tokens, mapa de capas, estados, movimiento, accesibilidad y mediciones. El plan de la 1.5.0 está en [PLAN_DISENO.md](tenveo_electron/PLAN_DISENO.md).
 
+- **Superficies planas:** la jerarquía la dan la disposición y la claridad de cada superficie, con líneas finas de un píxel; no hay brillos, biseles ni halos.
+- **La isla:**
+  - Al centro de la barra, una cápsula muestra el estado del PC500 (con su latencia) y de OBS.
+  - Los avisos salen de ella como de la Dynamic Island: se transforma en el mensaje y después vuelve.
+  - Un clic la cierra; con el puntero encima se queda.
+- **App de Mac:**
+  - menú en español con **Ajustes… (⌘,)**, Acerca de, Edición, zoom y pantalla completa;
+  - ícono propio en la grilla de macOS.
 - **Apariencia:**
   - Sigue a macOS (clara u oscura) y se puede fijar en **Ajustes → Apariencia**; se aplica al instante.
   - Colores de sistema de Apple con variantes de alto contraste.
   - Todo texto con significado da 4,5:1 o más.
 - **Barra superior:**
   - En la app de escritorio también es la barra de título: los semáforos de macOS quedan dentro.
-  - Muestra el estado del PC500 con su latencia, el estado de OBS, las salidas de OBS (Live, Rec, Vcam), SYNC OBS y Ajustes, en cápsulas de vidrio.
+  - A la izquierda va la marca, al centro la isla y a la derecha las salidas de OBS (Live, Rec, Vcam, solo texto), SYNC OBS y Ajustes.
 - **Monitores:**
   - El PGM, con el video en vivo del PC500, ocupa dos tercios en 16:9. El PVW, que no lleva video, es una pantalla de la misma altura con la cámara en Preview.
   - Un anillo rojo o verde los identifica.
@@ -242,17 +253,17 @@ El diseño sigue las Human Interface Guidelines de Apple (sistema 26). La especi
 - **Consola:**
   - Buses Program y Preview y capas en dos filas, como en el equipo, en una grilla de 7 columnas compartida.
   - CUT y AUTO juntos arriba, FTB aparte abajo (para no pulsarlo sin querer) y una T-Bar que usa toda la altura.
-  - El tally se pinta en el mismo cuadro, como una tecla iluminada.
-  - Cuando el equipo mueve la T-Bar, la manija va con un spring.
+  - El tally se pinta en el mismo cuadro, con relleno sólido.
+  - La T-Bar resiste como una banda elástica pasado un extremo (solo se ve: el valor no pasa de 0 a 255) y vuelve al soltarla.
 - **Movimiento:**
-  - Springs de Apple: las pestañas deslizan su selección, Ajustes nace del botón que lo abrió, los avisos entran y salen por el mismo camino y el video se materializa al aparecer.
+  - Springs de Apple: la isla se transforma, las pestañas deslizan su selección y el panel entra detrás, Ajustes nace del botón que lo abrió, el video se materializa al aparecer y los tiempos de Stream y Rec ruedan sus dígitos.
   - Con Reducir movimiento solo quedan fundidos.
 - **Sin conexión con el PC500:** la consola, el mezclador y los botones del equipo quedan atenuados.
 - **Barra lateral** con pestañas: **Audio** (mezclador), **OBS** (escenas) y **Equipo** (datos del PC500, STREAM, REC y demás botones del equipo, y estado del video con Encender y Apagar STREAM).
-- **Ajustes:**
-  - IP del PC500 con **Buscar en la red**, **Reconectar** y el panel web del equipo;
-  - OBS;
-  - **Apariencia**.
+- **Ajustes** (⌘,), con la forma de Ajustes del Sistema, en grupos de filas:
+  - IP del PC500, **Buscar**, **Reconectar** y el panel web;
+  - OBS, con un interruptor para quitar la contraseña guardada;
+  - **Apariencia** con miniaturas: Clara, Oscura o Automática.
 - **Rendimiento:**
   - Cada actualización solo toca el DOM donde algo cambió.
   - Mientras hay video no hay ningún desenfoque de fondo en pantalla: en esta Mac obliga a la GPU a componer toda la ventana en cada cuadro (DISENO.md, sección 8).
@@ -268,13 +279,15 @@ Se guarda en `~/Library/Application Support/Tenveo Studio/settings.json`: IP del
 ### 4.10 Pruebas
 ```bash
 cd tenveo_electron
-npm test             # 96 pruebas: protocolo, red, IPv6, OBS, búsqueda, video, adb, configuración, springs y sintaxis
+npm test             # 98 pruebas: protocolo, red, IPv6, OBS, búsqueda, video, adb, configuración, springs y sintaxis
 npm run smoke        # abre la app contra simuladores, pulsa botones y guarda una captura
 npm run smoke:web    # lo mismo en modo navegador (SMOKE_WEB_DEMO=1 para el modo demo)
 npm run smoke:video  # la app enciende STREAM, toma el video de un servidor RTMP de prueba, lo dibuja y lo apaga
-npm run smoke:ui     # T-Bar 1:1, pestañas con flechas, Ajustes, apariencia y atajos, con eventos de verdad
+npm run smoke:ui     # T-Bar 1:1 y banda elástica, pestañas con flechas, Ajustes, apariencia, atajos y la isla
+npm run icon         # vuelve a dibujar el ícono de la app (build/icon.icns)
 npm run mock         # simuladores del PC500 y de OBS para trabajar sin el equipo
-node scripts/screenshots.mjs [carpeta] [--solo 1,7]   # 14 capturas: pestañas, ajustes, sin conexión, tamaños, claro, más contraste y transparencia reducida
+node scripts/screenshots.mjs [carpeta] [--solo 1,7]   # 17 capturas: pestañas, ajustes, sin conexión, tamaños, claro, contraste, transparencia y la isla
+SMOKE_WEB_DEMO=1 SMOKE_WEB_SIZE=390x844 npm run smoke:web   # la versión web del tamaño de un teléfono
 
 # Mediciones (abren la ventana de la app unos segundos):
 node scripts/bench-video.mjs                         # video 1080p60: latencia, cuadros perdidos, tirones, clic y CPU
@@ -294,7 +307,7 @@ El emisor de prueba codifica una carta de ajuste en H.264 con el codificador de 
 
 | Target | Cómo se genera | Resultado |
 |---|---|---|
-| **Mac universal** (Intel y Apple Silicon) | `npm run dist` | `dist/TenveoStudio-1.4.0-universal.dmg`, `.zip` y `dist/mac-universal/Tenveo Studio.app` |
+| **Mac universal** (Intel y Apple Silicon) | `npm run dist` | `dist/TenveoStudio-1.5.0-universal.dmg`, `.zip` y `dist/mac-universal/Tenveo Studio.app` |
 | Solo Intel o solo Apple Silicon | `npm run dist:x64` o `npm run dist:arm64` | `.dmg` y `.zip` en `dist/` |
 | **Web** | no se compila | `npm run web` o `./start_app.sh --web` |
 
@@ -390,6 +403,8 @@ El mando tarda lo mismo en todas las versiones: esos 10 ms los pone el propio PC
 - CPU de 39 a 46 %, contra 51 %.
 - Lo mismo con Ajustes abierto sobre el video. El primer intento con desenfoques de fondo (Liquid Glass "de verdad") subía la latencia a 3,4 s: el detalle está en [DISENO.md](tenveo_electron/DISENO.md), sección 8.
 
+**1.5.0**, en corridas alternadas con la 1.4.0 en las mismas condiciones, rinde igual: 123 contra 122 ms de latencia, 0 cuadros perdidos y 46–48 % de CPU en las dos.
+
 ## 9. Limitaciones conocidas y pendientes
 
 > [!WARNING]
@@ -401,5 +416,4 @@ El mando tarda lo mismo en todas las versiones: esos 10 ms los pone el propio PC
 - **Firma de la app:** es provisional. Para repartirla sin avisos de seguridad hace falta una cuenta de desarrollador de Apple y notarización.
 - **Vúmetros:** siguen la posición del fader. El PC500 no manda niveles de audio.
 - **NDI:** el firmware tiene las claves `ndi_name` y `ndi_list`, pero la app todavía no las controla.
-- **Icono:** la app usa el icono por defecto de Electron.
 - **App de Flutter (legado):** `tenveo_app/` ya no se desarrolla. Su compilación nativa necesita Xcode y su T-Bar puede mandar varios CUT en un solo arrastre.

@@ -1,6 +1,6 @@
 # Tenveo Studio (Electron)
 
-Consola para controlar el switcher Tenveo PC500 y OBS Studio desde la Mac, todo por la red. Es la versión principal del proyecto; la documentación completa está en [DOCUMENTACION.md](../DOCUMENTACION.md) y el sistema de diseño en [DISENO.md](DISENO.md).
+Consola para controlar el switcher Tenveo PC500 y OBS Studio desde la Mac, todo por la red. Es la versión principal del proyecto. La documentación completa está en [DOCUMENTACION.md](../DOCUMENTACION.md), el sistema de diseño en [DISENO.md](DISENO.md) y el plan de la 1.5.0 en [PLAN_DISENO.md](PLAN_DISENO.md).
 
 ## Comandos
 
@@ -11,7 +11,8 @@ npm test             # pruebas automáticas
 npm run smoke        # abre la app contra simuladores, pulsa botones y guarda una captura
 npm run smoke:web    # la misma prueba en modo navegador (SMOKE_WEB_DEMO=1 para el modo demo)
 npm run smoke:video  # la app enciende STREAM, toma el video de un servidor RTMP de prueba, lo dibuja y lo apaga
-npm run smoke:ui     # interacciones de la interfaz: T-Bar, pestañas con flechas, Ajustes, apariencia y atajos
+npm run smoke:ui     # interacciones de la interfaz: T-Bar, pestañas con flechas, Ajustes, apariencia, atajos y la isla
+npm run icon         # vuelve a dibujar el ícono de la app (build/icon.icns)
 npm run check-device -- <dirección>   # diagnóstico con un PC500 real (ver DOCUMENTACION.md, 4.10)
 node scripts/bench-video.mjs          # mide el video 1080p60: latencia, cuadros perdidos, fluidez y CPU (--ajustes: con Ajustes abierto)
 node scripts/screenshots.mjs          # capturas de la interfaz en 14 estados (claro, oscuro, contraste, tamaños)
@@ -48,7 +49,7 @@ npm run dist         # app de Mac universal: .dmg y .zip en dist/
 | `TENVEO_USER_DATA` | Carpeta de datos alternativa |
 | `TENVEO_SMOKE_SHOT`, `TENVEO_SMOKE_CLICKS`, `TENVEO_SMOKE_WAIT_MS` | Captura automática que usan las pruebas de humo |
 | `TENVEO_SMOKE_WAIT_VIDEO`, `TENVEO_SMOKE_VIDEO_TIMEOUT_MS`, `TENVEO_SMOKE_STOP_STREAM` | Esperar video en el monitor PGM y apagar STREAM al terminar |
-| `TENVEO_SMOKE_SIZE`, `TENVEO_SMOKE_MEDIA` | Tamaño de la ventana y preferencias del sistema simuladas (por ejemplo `prefers-contrast:more`) en las capturas |
+| `TENVEO_SMOKE_SIZE`, `TENVEO_SMOKE_MEDIA`, `TENVEO_SMOKE_EVAL` | Tamaño de la ventana, preferencias del sistema simuladas (por ejemplo `prefers-contrast:more`) y código que corre antes de la captura |
 
 Ejemplo, con los simuladores corriendo en otra terminal (`npm run mock`):
 

@@ -1,5 +1,5 @@
 // Puente seguro entre la ventana y el proceso principal.
-// La ventana no tiene acceso a Node: solo ve estas cuatro funciones.
+// La ventana no tiene acceso a Node: solo ve estas funciones.
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld(
@@ -12,6 +12,12 @@ contextBridge.exposeInMainWorld(
       const handler = (_event, snapshot) => callback(snapshot);
       ipcRenderer.on('tenveo:state', handler);
       return () => ipcRenderer.removeListener('tenveo:state', handler);
+    },
+    // Órdenes del menú de la Mac, por ejemplo Ajustes… (⌘,).
+    onMenu: (callback) => {
+      const handler = (_event, action) => callback(String(action));
+      ipcRenderer.on('tenveo:menu', handler);
+      return () => ipcRenderer.removeListener('tenveo:menu', handler);
     },
   }),
 );

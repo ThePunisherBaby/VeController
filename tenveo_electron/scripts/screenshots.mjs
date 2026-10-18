@@ -82,6 +82,9 @@ const STATES = [
   { name: '12-contraste', clicks: ['[data-action="tab"][data-tab="audio"]'], video: true, media: CONTRAST },
   { name: '13-contraste-claro', clicks: [LIGHT, '[data-action="tab"][data-tab="obs"]'], video: true, media: CONTRAST },
   { name: '14-transparencia-reducida', clicks: ['[data-action="open-settings"]'], video: true, media: SOLID },
+  { name: '15-isla', clicks: ['[data-action="tab"][data-tab="audio"]'], video: true, eval: `tenveoIsland.show('STREAM encendido: el video llega en un momento.', 'success')` },
+  { name: '16-isla-clara', clicks: [LIGHT], video: true, eval: `tenveoIsland.show('OBS rechazó la contraseña. Revísala en Ajustes.', 'error')` },
+  { name: '17-ajustes-contrasena', clicks: ['[data-action="open-settings"]', '#field-obs-clear'], video: true, env: { TENVEO_OBS_PASSWORD: 'secreta' } },
 ];
 
 for (const state of STATES) {
@@ -104,6 +107,8 @@ for (const state of STATES) {
       ...(state.video ? { TENVEO_SMOKE_WAIT_VIDEO: '1' } : {}),
       ...(state.size ? { TENVEO_SMOKE_SIZE: state.size } : {}),
       ...(state.media ? { TENVEO_SMOKE_MEDIA: state.media } : {}),
+      ...(state.eval ? { TENVEO_SMOKE_EVAL: state.eval } : {}),
+      ...state.env,
     },
     stdio: 'ignore',
   });

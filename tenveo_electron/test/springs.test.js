@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cssLinear, fromDurationBounce, SpringValue, springState } from '../src/renderer/js/springs.js';
+import { cssLinear, fromDurationBounce, rubberBand, SpringValue, springState } from '../src/renderer/js/springs.js';
 
 test('reproduce los ejemplos de la documentación de SwiftUI.Spring', () => {
   const bouncy = fromDurationBounce(0.5, 0.3);
@@ -37,6 +37,23 @@ test('al cambiar de destino sigue desde la posición y la velocidad que tenía',
   assert.ok(Math.abs(before.velocity - after.velocity) < 1e-9);
   assert.equal(spring.isSettled(5), true);
   assert.ok(Math.abs(spring.sample(5).value + 50) < 1e-6);
+});
+
+test('la banda elástica de UIScrollView resiste y nunca pasa del contenedor', () => {
+  // Los valores de referencia del prompt de diseño (d = 800); el de 400 es
+  // 172,549, que el prompt redondea a 172,6.
+  assert.ok(Math.abs(rubberBand(100, 800) - 51.5) < 0.05);
+  assert.ok(Math.abs(rubberBand(200, 800) - 96.7) < 0.05);
+  assert.ok(Math.abs(rubberBand(400, 800) - 172.55) < 0.05);
+  assert.ok(rubberBand(1e9, 800) < 800);
+});
+
+test('al redirigir se puede imponer la velocidad del gesto', () => {
+  const spring = new SpringValue(24, fromDurationBounce(0.5));
+  spring.set(24, 0);
+  spring.retarget(0, 0, fromDurationBounce(0.5), -300);
+  assert.equal(spring.sample(0).velocity, -300);
+  assert.ok(Math.abs(spring.sample(3).value) < 1e-3);
 });
 
 test('la curva CSS del spring termina en 1 y dura lo que tarda en asentarse', () => {

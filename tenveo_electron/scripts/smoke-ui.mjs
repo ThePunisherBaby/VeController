@@ -5,7 +5,8 @@
 //   - las pestañas se recorren con las flechas (patrón ARIA);
 //   - Ajustes nace del botón que lo abrió, Esc lo cierra y la apariencia se
 //     aplica al instante;
-//   - la tecla 3 pone CAM 3 en Preview y lo anuncia con aria-pressed.
+//   - la tecla 3 pone CAM 3 en Preview y lo anuncia con aria-pressed;
+//   - la isla se transforma en un aviso y un clic la devuelve a su estado.
 // Usa los simuladores del PC500 y de OBS: no toca ningún equipo real.
 //
 // Uso: npm run smoke:ui
@@ -137,6 +138,29 @@ try {
   check('el PC500 recibió la posición de la T-Bar', putters.length > 0 && Math.abs(putters.at(-1) - (100 / after.travel) * 255) <= 1, `putter ${putters.at(-1)}`);
   check('al soltarla se queda donde quedó', after.translate === during.translate && Math.abs(after.value - expected) <= 1, `${after.value} %`);
 
+  // Más allá del extremo resiste como una banda elástica, sin pasar de 255, y
+  // al soltarla vuelve al extremo.
+  const handleY = () =>
+    evaluate(`(() => { const r = document.getElementById('tbar-handle').getBoundingClientRect(); return r.y + r.height / 2; })()`);
+  const fromY = await handleY();
+  const pull = after.travel + 90;
+  await mouse('mousePressed', box.x, fromY);
+  for (let dy = 20; dy <= pull; dy += 20) {
+    await mouse('mouseMoved', box.x, fromY + dy);
+    await delay(16);
+  }
+  await mouse('mouseMoved', box.x, fromY + pull);
+  await delay(300);
+  const stretched = await evaluate(
+    `(() => { const t = document.getElementById('tbar-track'), h = document.getElementById('tbar-handle'); return { shift: parseFloat(h.style.translate.split(' ')[1]), value: Number(t.getAttribute('aria-valuenow')) }; })()`,
+  );
+  check('pasado el extremo la manija se estira con resistencia', stretched.shift > after.travel + 4 && stretched.shift < after.travel + 36 && stretched.value === 100, `${(stretched.shift - after.travel).toFixed(1)} px de más`);
+  check('el PC500 nunca recibe más de 255', Math.max(...pc500.received.filter((m) => 'putter' in m).map((m) => m.putter)) === 255);
+  await mouse('mouseReleased', box.x, fromY + pull);
+  await delay(1200);
+  const settled = await evaluate(`parseFloat(document.getElementById('tbar-handle').style.translate.split(' ')[1])`);
+  check('al soltarla vuelve al extremo', Math.abs(settled - after.travel) < 0.5, `${settled.toFixed(1)} px de ${after.travel}`);
+
   // --- Pestañas con las flechas ---
   await evaluate(`document.getElementById('tab-audio').focus()`);
   await key('ArrowRight', 'ArrowRight', 39);
@@ -174,6 +198,22 @@ try {
   await delay(400);
   const pressed = await evaluate(`[...document.querySelectorAll('#bus-pvw .key')].map((k) => k.getAttribute('aria-pressed')).join(',')`);
   check('la tecla 3 pone CAM 3 en Preview y lo anuncia', pressed === 'false,false,true,false,false', pressed);
+
+  // --- La isla ---
+  const compact = await evaluate(`document.getElementById('island').getBoundingClientRect().height`);
+  await evaluate(`tenveoIsland.show('Prueba de la isla: el aviso sale de la barra.', 'success')`);
+  await delay(1000);
+  const open = await evaluate(
+    `(() => { const i = document.getElementById('island'); return { mode: i.dataset.mode, height: i.getBoundingClientRect().height, radius: parseFloat(i.style.borderRadius), message: Number(getComputedStyle(document.getElementById('island-message')).opacity), status: Number(getComputedStyle(document.getElementById('island-status')).opacity), text: document.getElementById('island-text').textContent }; })()`,
+  );
+  check('la isla se transforma en el aviso', open.mode === 'message' && open.height > compact + 6 && open.message === 1 && open.status === 0, `${compact} → ${open.height.toFixed(1)} px`);
+  check('el radio de la isla sale de su alto', Math.abs(open.radius - Math.min(22, open.height / 2)) < 0.6, `${open.radius} px`);
+  await evaluate(`document.getElementById('island-message').click()`);
+  await delay(1000);
+  const back = await evaluate(
+    `(() => { const i = document.getElementById('island'); return { mode: i.dataset.mode, height: i.getBoundingClientRect().height, status: Number(getComputedStyle(document.getElementById('island-status')).opacity) }; })()`,
+  );
+  check('un clic en el aviso devuelve la isla a su estado', back.mode === 'status' && Math.abs(back.height - compact) < 1 && back.status === 1, `${back.height.toFixed(1)} px`);
   ws.close();
 } catch (error) {
   check(`sin errores: ${error.message}`, false);

@@ -20,8 +20,9 @@
 //   TENVEO_SMOKE_SIZE     tamaño de la ventana en las capturas, por ejemplo 1180x740
 //   TENVEO_SMOKE_MEDIA    preferencias del sistema simuladas en las capturas, por ejemplo
 //                         prefers-contrast:more,prefers-reduced-transparency:reduce
+//   TENVEO_SMOKE_EVAL     código que corre en la ventana después de los clics (capturas)
 
-import { app, BrowserWindow, ipcMain, nativeTheme, net, protocol, safeStorage, session, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, session, shell } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -332,6 +333,81 @@ function registerPermissions() {
   ses.setPermissionCheckHandler(() => false);
 }
 
+// Menú de la Mac en español, como el de una app nativa: Ajustes… con ⌘,,
+// Edición para los campos de texto, zoom y pantalla completa, y la ventana
+// Acerca de con la versión. Las herramientas de desarrollo solo sin empaquetar.
+function buildMenu() {
+  const name = 'Tenveo Studio';
+  app.setAboutPanelOptions({
+    applicationName: name,
+    applicationVersion: app.getVersion(),
+    version: '',
+    copyright: 'Consola para el switcher Tenveo PC500 y OBS Studio.',
+  });
+  const send = (action) => () => mainWindow?.webContents.send('tenveo:menu', action);
+  const template = [
+    {
+      label: name,
+      submenu: [
+        { role: 'about', label: `Acerca de ${name}` },
+        { type: 'separator' },
+        { label: 'Ajustes…', accelerator: 'Command+,', click: send('open-settings') },
+        { type: 'separator' },
+        { role: 'services', label: 'Servicios' },
+        { type: 'separator' },
+        { role: 'hide', label: `Ocultar ${name}` },
+        { role: 'hideOthers', label: 'Ocultar otros' },
+        { role: 'unhide', label: 'Mostrar todo' },
+        { type: 'separator' },
+        { role: 'quit', label: `Salir de ${name}` },
+      ],
+    },
+    {
+      label: 'Edición',
+      submenu: [
+        { role: 'undo', label: 'Deshacer' },
+        { role: 'redo', label: 'Rehacer' },
+        { type: 'separator' },
+        { role: 'cut', label: 'Cortar' },
+        { role: 'copy', label: 'Copiar' },
+        { role: 'paste', label: 'Pegar' },
+        { role: 'selectAll', label: 'Seleccionar todo' },
+      ],
+    },
+    {
+      label: 'Visualización',
+      submenu: [
+        { role: 'resetZoom', label: 'Tamaño real' },
+        { role: 'zoomIn', label: 'Ampliar' },
+        { role: 'zoomOut', label: 'Reducir' },
+        { type: 'separator' },
+        { role: 'togglefullscreen', label: 'Pantalla completa' },
+        ...(app.isPackaged
+          ? []
+          : [{ type: 'separator' }, { role: 'reload', label: 'Volver a cargar' }, { role: 'toggleDevTools', label: 'Herramientas para desarrolladores' }]),
+      ],
+    },
+    {
+      label: 'Ventana',
+      role: 'windowMenu',
+      submenu: [
+        { role: 'minimize', label: 'Minimizar' },
+        { role: 'zoom', label: 'Zoom' },
+        { type: 'separator' },
+        { role: 'front', label: 'Traer todo al frente' },
+      ],
+    },
+    {
+      label: 'Ayuda',
+      role: 'help',
+      submenu: [
+        { label: `Documentación de ${name}`, click: () => shell.openExternal('https://github.com/ThePunisherBaby/VeController#readme') },
+      ],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 // El fondo de la ventana es el de la interfaz, así no hay destellos al abrir
 // ni al cambiar de apariencia.
 const windowBackground = () => (nativeTheme.shouldUseDarkColors ? '#000000' : '#f2f2f7');
@@ -430,6 +506,11 @@ async function runSmoke(win) {
       await delay(500);
     }
 
+    if (env.TENVEO_SMOKE_EVAL) {
+      await win.webContents.executeJavaScript(env.TENVEO_SMOKE_EVAL);
+      await delay(1200);
+    }
+
     if (env.TENVEO_SMOKE_WAIT_VIDEO === '1') {
       const videoStart = Date.now();
       let playing = false;
@@ -514,6 +595,9 @@ async function bootstrap() {
   controller.onChange(syncAppearance);
   syncAppearance();
   nativeTheme.on('updated', () => mainWindow?.setBackgroundColor(windowBackground()));
+  buildMenu();
+  // Empaquetada, el ícono va en la app; desde el código fuente se pone en el Dock.
+  if (!app.isPackaged && process.platform === 'darwin') app.dock?.setIcon(path.join(PROJECT_DIR, 'build', 'icon.png'));
   registerIpc();
 
   if (env.TENVEO_DISABLE_ADB !== '1') {

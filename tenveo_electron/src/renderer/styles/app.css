@@ -1,9 +1,10 @@
 /* Tenveo Studio · sistema de diseño.
    Sigue las Human Interface Guidelines de Apple (sistema 26): colores
    semánticos con variantes clara, oscura y de alto contraste; la tipografía
-   del sistema; geometría concéntrica; Liquid Glass solo en la capa de
-   controles que flota sobre el contenido, y movimiento con springs.
-   La especificación completa está en DISENO.md. */
+   del sistema; geometría concéntrica; superficies planas, donde la jerarquía
+   la dan la disposición, la claridad de cada superficie y el movimiento, no
+   los brillos ni los biseles; y springs. La especificación está en DISENO.md
+   y el plan de esta revisión en PLAN_DISENO.md. */
 
 /* ============================================================
    Tokens
@@ -16,21 +17,23 @@
   --bg: light-dark(#f2f2f7, #000000);
   --card: light-dark(#ffffff, #1c1c1e);
   --key: light-dark(#ececf0, #2c2c2e);
-  --key-hover: light-dark(#e3e3e8, #3a3a3c);
-  --key-press: light-dark(#d6d6dc, #48484a);
-  --key-sheen: light-dark(rgb(255 255 255 / 0.7), rgb(255 255 255 / 0.05));
+  --key-hover: light-dark(#e4e4e9, #363638);
+  --key-press: light-dark(#d8d8de, #444446);
   --key-border: transparent;
   --label: light-dark(#000000, #ffffff);
   /* El secundario de Apple en claro (0,6) da 3,4:1 sobre blanco: aquí 0,78 da 5,2:1. */
   --label-2: light-dark(rgb(60 60 67 / 0.78), rgb(235 235 245 / 0.6));
   --label-3: light-dark(rgb(60 60 67 / 0.45), rgb(235 235 245 / 0.3));
-  --separator: light-dark(rgb(60 60 67 / 0.16), rgb(84 84 88 / 0.5));
-  --hairline: light-dark(rgb(0 0 0 / 0.05), rgb(255 255 255 / 0.07));
+  --separator: light-dark(rgb(60 60 67 / 0.2), rgb(84 84 88 / 0.65));
+  --hairline: light-dark(rgb(0 0 0 / 0.07), rgb(255 255 255 / 0.08));
   --fill: light-dark(rgb(120 120 128 / 0.2), rgb(120 120 128 / 0.36));
   --fill-2: light-dark(rgb(120 120 128 / 0.16), rgb(120 120 128 / 0.32));
   --fill-3: light-dark(rgb(118 118 128 / 0.12), rgb(118 118 128 / 0.24));
   --fill-4: light-dark(rgb(116 116 128 / 0.08), rgb(118 118 128 / 0.18));
   --screen: #000000;
+
+  /* Una línea fina es un píxel físico: medio punto en pantallas Retina. */
+  --hair: 1px;
 
   /* Colores del sistema 26 (HIG, Color). */
   --red: light-dark(#ff383c, #ff4245);
@@ -60,6 +63,30 @@
   --lit-yellow-text: light-dark(#7a4a00, #ffe08a);
   --lit-blue-text: light-dark(#0b4fc4, #b3d7ff);
 
+  /* Controles de la barra: material plano, relleno y línea fina. */
+  --control: light-dark(#ffffff, rgb(255 255 255 / 0.08));
+  --control-hover: light-dark(#f7f7f9, rgb(255 255 255 / 0.11));
+  --control-press: light-dark(#e9e9ee, rgb(255 255 255 / 0.16));
+  --control-edge: light-dark(rgb(0 0 0 / 0.1), rgb(255 255 255 / 0.07));
+  --control-shadow: light-dark(rgb(0 0 0 / 0.05), transparent);
+
+  /* La isla: negra como la del iPhone en claro; en oscuro, apenas elevada. */
+  --island: light-dark(#000000, #1c1c1e);
+  --island-edge: light-dark(transparent, rgb(255 255 255 / 0.1));
+  --island-label: rgb(235 235 245 / 0.62);
+
+  /* Material grueso (Ajustes): desenfoque real solo sin video. */
+  --sheet: light-dark(rgb(250 250 252 / 0.86), rgb(36 36 38 / 0.84));
+  --sheet-solid: light-dark(#f9f9fb, #28282a);
+  --sheet-blur: 30px;
+  --group: light-dark(#ffffff, rgb(255 255 255 / 0.055));
+  --input: light-dark(rgb(0 0 0 / 0.04), rgb(255 255 255 / 0.07));
+
+  /* Sombras: grandes, suaves y de baja opacidad, solo en lo que flota. */
+  --shadow-1: light-dark(rgb(0 0 0 / 0.06), rgb(0 0 0 / 0.35));
+  --shadow-2: light-dark(rgb(0 0 0 / 0.14), rgb(0 0 0 / 0.6));
+  --dim: light-dark(rgb(0 0 0 / 0.2), rgb(0 0 0 / 0.5));
+
   /* Tipografía del sistema (SF Pro en la Mac) con el tracking de SF por tamaño. */
   --font: system-ui, -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
@@ -81,22 +108,7 @@
   --card-pad: 12px;
   --radius-inner: calc(var(--radius-outer) - var(--card-pad));
   --toolbar-h: 52px;
-  --control-h: 32px;
-
-  /* Materiales: vidrio de la capa de controles y elevación. */
-  --glass-fill: light-dark(rgb(255 255 255 / 0.72), rgb(255 255 255 / 0.075));
-  --glass-fill-thick: light-dark(rgb(250 250 252 / 0.84), rgb(36 36 38 / 0.82));
-  --glass-solid: light-dark(#f9f9fb, #28282a);
-  --glass-blur-thick: 30px;
-  --glass-rim-top: light-dark(rgb(255 255 255 / 0.95), rgb(255 255 255 / 0.24));
-  --glass-rim-bottom: light-dark(rgb(255 255 255 / 0.4), rgb(255 255 255 / 0.05));
-  --glass-edge: light-dark(rgb(0 0 0 / 0.08), rgb(0 0 0 / 0.6));
-  --glow: light-dark(rgb(0 0 0 / 0.07), rgb(255 255 255 / 0.3));
-  --shadow-1: light-dark(rgb(0 0 0 / 0.06), rgb(0 0 0 / 0.4));
-  --shadow-2: light-dark(rgb(0 0 0 / 0.14), rgb(0 0 0 / 0.6));
-  --elevation-1: 0 1px 2px var(--shadow-1);
-  --elevation-float: 0 12px 32px var(--shadow-2), 0 2px 8px var(--shadow-1);
-  --dim: light-dark(rgb(0 0 0 / 0.2), rgb(0 0 0 / 0.5));
+  --control-h: 34px;
 
   /* Movimiento: springs de Apple (duración perceptual, rebote) como curvas CSS,
      generadas con springs.js. La duración es hasta que el spring se asienta. */
@@ -108,6 +120,12 @@
   --dur-micro-snappy: 419ms; /* (0,3 s, rebote 0,15), curva snappy */
   --dur-fade: 200ms;
   --motion: 1; /* 0 con Reducir movimiento: sin desplazamientos ni escalas */
+}
+
+@media (min-resolution: 2dppx) {
+  :root {
+    --hair: 0.5px;
+  }
 }
 
 :root[data-appearance="dark"] {
@@ -131,6 +149,9 @@
     --label-3: light-dark(rgb(60 60 67 / 0.7), rgb(235 235 245 / 0.6));
     --separator: light-dark(rgb(0 0 0 / 0.5), rgb(255 255 255 / 0.5));
     --hairline: light-dark(rgb(0 0 0 / 0.6), rgb(255 255 255 / 0.6));
+    --control: light-dark(#ffffff, #000000);
+    --control-edge: light-dark(rgb(0 0 0 / 0.6), rgb(255 255 255 / 0.6));
+    --island-edge: rgb(255 255 255 / 0.6);
     --red: light-dark(#e9152d, #ff6165);
     --green: light-dark(#008932, #4ad968);
     --orange: light-dark(#c55300, #ffa056);
@@ -144,19 +165,16 @@
     --pgm: #c7001b;
     --on-pvw: light-dark(#ffffff, #052e12);
     --on-trans: light-dark(#ffffff, #2b1700);
-    --glass-fill: light-dark(#ffffff, #1c1c1e);
-    --glass-fill-thick: light-dark(#ffffff, #1c1c1e);
-    --glass-solid: light-dark(#ffffff, #1c1c1e);
-    --glass-edge: light-dark(rgb(0 0 0 / 0.6), rgb(255 255 255 / 0.6));
+    --sheet: light-dark(#ffffff, #1c1c1e);
+    --sheet-solid: light-dark(#ffffff, #1c1c1e);
+    --group: light-dark(#ffffff, #000000);
   }
 }
 
-/* Transparencia reducida: el vidrio pasa a ser una superficie sólida. */
+/* Transparencia reducida: el material grueso pasa a ser sólido. */
 @media (prefers-reduced-transparency: reduce) {
   :root {
-    --glass-fill: light-dark(#ffffff, #2c2c2e);
-    --glass-fill-thick: light-dark(#f9f9fb, #2c2c2e);
-    --glass-solid: light-dark(#f9f9fb, #2c2c2e);
+    --sheet: var(--sheet-solid);
   }
 }
 
@@ -230,10 +248,6 @@ button {
   flex: none;
 }
 
-.spacer {
-  flex: 1;
-}
-
 .app {
   display: flex;
   flex-direction: column;
@@ -244,65 +258,24 @@ button {
   border-radius: var(--radius-outer);
   corner-shape: squircle;
   background: var(--card);
-  box-shadow: inset 0 0 0 1px var(--hairline);
+  box-shadow: inset 0 0 0 var(--hair) var(--hairline);
 }
-
-/* ============================================================
-   Materiales: Liquid Glass de la capa de controles
-   ============================================================ */
 
 /* Medido en esta Mac (bench-video): cualquier backdrop-filter en pantalla
-   impide que macOS presente el video como una capa propia, y la GPU compone
-   toda la ventana en cada cuadro (latencia de 117 ms a 365 ms o más, cuadros
-   perdidos). Por eso el vidrio fijo (barra, chips sobre el video) es relleno
-   translúcido, borde especular y sombra, sin muestrear el fondo: sobre un fondo
-   liso se ve igual. El desenfoque real queda para el diálogo y los avisos, y
-   solo mientras no hay video (data-video en la raíz). */
-.glass {
-  position: relative;
-  background: var(--glass-fill);
-  box-shadow: var(--elevation-1), 0 0 0 0.5px var(--glass-edge);
-}
-
-/* Borde especular: más claro arriba, donde le da la luz. */
-:is(.glass, .dialog, .toast, .segmented-thumb, .screen-label, .screen-badge)::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  padding: 1px;
-  border-radius: inherit;
-  corner-shape: inherit;
-  background: linear-gradient(180deg, var(--glass-rim-top), var(--glass-rim-bottom) 40%, transparent 62%, var(--glass-rim-bottom));
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  pointer-events: none;
-}
-
-/* Al presionar, el vidrio se ilumina desde el punto del clic (app.js pone --glow-x/y). */
-:is(.capsule-btn, .icon-btn, button.status, .close-btn)::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(circle at var(--glow-x, 50%) var(--glow-y, 50%), var(--glow), transparent 70%);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--dur-smooth) var(--ease-smooth);
-}
-
-:is(.capsule-btn, .icon-btn, button.status, .close-btn):active::after {
-  opacity: 1;
-  transition-duration: 80ms;
-}
+   impide que macOS presente el video como una capa propia y la GPU compone
+   toda la ventana en cada cuadro. Por eso nada fijo desenfoca el fondo. */
 
 /* ============================================================
    Barra de herramientas (también barra de título en la Mac)
    ============================================================ */
 
 .toolbar {
+  position: relative;
   flex: none;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  justify-content: space-between;
+  gap: var(--space-3);
   height: var(--toolbar-h);
   padding: 0 var(--space-3);
   -webkit-app-region: drag;
@@ -313,74 +286,257 @@ button {
   padding-left: 84px;
 }
 
-.toolbar :is(button, .capsule, .demo-tag) {
+.toolbar :is(button, .capsule, .island, .demo-tag) {
   -webkit-app-region: no-drag;
 }
 
-.brand {
+.toolbar-lead,
+.toolbar-trail {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin-right: var(--space-2);
 }
 
 .brand-mark {
   width: 20px;
   height: 20px;
-  border-radius: 6px;
-  corner-shape: squircle;
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.28), transparent 55%),
-    linear-gradient(135deg, var(--red) 0 50%, var(--green) 50% 100%);
-  box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.18);
+  flex: none;
 }
 
 .brand-name {
+  margin-left: 2px;
   font: 600 13px/16px var(--font);
   letter-spacing: var(--track-13);
   white-space: nowrap;
+}
+
+.demo-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--orange) 18%, transparent);
+  color: var(--orange-text);
+  font: 600 11px/1 var(--font);
+  letter-spacing: var(--track-11);
 }
 
 .capsule {
   display: inline-flex;
   align-items: center;
   height: var(--control-h);
+  border: 0;
   border-radius: 999px;
+  background: var(--control);
+  box-shadow: 0 1px 2px var(--control-shadow), inset 0 0 0 var(--hair) var(--control-edge);
 }
 
-.status-capsule {
-  padding: 0 2px;
+.capsule-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--control-h);
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--label);
+  font: 500 13px/1 var(--font);
+  letter-spacing: var(--track-13);
+  white-space: nowrap;
+}
+
+/* Las salidas de OBS: un grupo de segmentos solo de texto. */
+.segment-capsule {
+  gap: 2px;
+  padding: 0 3px;
+}
+
+.segment-capsule .capsule-btn {
+  height: calc(var(--control-h) - 6px);
+  padding: 0 12px;
+  background: transparent;
+  color: var(--label-2);
+}
+
+.segment-capsule .capsule-btn:hover {
+  background: var(--fill-4);
+  color: var(--label);
+}
+
+.segment-capsule .capsule-btn:active {
+  background: var(--fill-3);
+}
+
+.capsule-btn.is-active,
+.segment-capsule .capsule-btn.is-active {
+  background: var(--pgm);
+  color: var(--on-pgm);
+}
+
+.capsule-btn--blue.is-active,
+.segment-capsule .capsule-btn--blue.is-active {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+.sync-btn {
+  color: var(--label-2);
+}
+
+.sync-btn[aria-pressed="true"] {
+  color: var(--label);
+}
+
+.sync-btn[aria-pressed="true"] .icon {
+  color: var(--purple-text);
+}
+
+.icon-btn {
+  justify-content: center;
+  width: var(--control-h);
+  padding: 0;
+  color: var(--label-2);
+}
+
+:is(.sync-btn, .icon-btn):hover {
+  background: var(--control-hover);
+  color: var(--label);
+}
+
+:is(.sync-btn, .icon-btn):active {
+  background: var(--control-press);
+}
+
+/* --- La isla --- */
+
+/* Anclada arriba al centro: crece hacia abajo sobre los monitores sin mover
+   el resto de la barra. island.js anima su ancho y su alto. */
+.island {
+  position: absolute;
+  top: calc((var(--toolbar-h) - 32px) / 2);
+  left: 50%;
+  z-index: 20;
+  width: 320px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--island);
+  box-shadow: inset 0 0 0 var(--hair) var(--island-edge);
+  color: #ffffff;
+  translate: -50% 0;
+}
+
+.island[data-mode="message"] {
+  box-shadow: inset 0 0 0 var(--hair) var(--island-edge), 0 10px 30px var(--shadow-2);
+}
+
+.island-status,
+.island-message {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% 0;
+  transition:
+    opacity var(--dur-fade) var(--ease-smooth),
+    scale var(--dur-micro) var(--ease-smooth);
+}
+
+/* Nunca hay dos contenidos a la vez: el que sale se va en el primer tramo del
+   morph (120 ms) y el que entra aparece después. Aquí, al volver al estado. */
+.island-status {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 4px;
+  white-space: nowrap;
+  transition-delay: 140ms;
+}
+
+.island-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: max-content;
+  min-width: 220px;
+  max-width: min(480px, calc(100vw - 2 * 360px));
+  padding: 12px 18px 12px 14px;
+  opacity: 0;
+  scale: calc(1 - 0.04 * var(--motion));
+  pointer-events: none;
+  transition-duration: 120ms, var(--dur-micro);
+}
+
+/* Al abrirse, al revés: se va el estado y entra el mensaje. */
+.island[data-mode="message"] .island-status {
+  opacity: 0;
+  scale: calc(1 - 0.04 * var(--motion));
+  pointer-events: none;
+  transition-duration: 120ms, var(--dur-micro);
+  transition-delay: 0s;
+}
+
+.island[data-mode="message"] .island-message {
+  opacity: 1;
+  scale: 1;
+  pointer-events: auto;
+  transition-duration: var(--dur-fade), var(--dur-micro);
+  transition-delay: 140ms;
+}
+
+.island-icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--blue);
+}
+
+.island[data-kind="success"] .island-icon {
+  color: var(--green);
+}
+
+.island[data-kind="error"] .island-icon {
+  color: var(--red);
+}
+
+.island-text {
+  font: 500 13px/18px var(--font);
+  letter-spacing: var(--track-13);
+}
+
+.island-divider {
+  width: var(--hair);
+  height: 14px;
+  background: rgb(255 255 255 / 0.18);
 }
 
 .status {
-  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: calc(var(--control-h) - 4px);
+  height: 26px;
   padding: 0 10px;
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: var(--label-2);
+  color: var(--island-label);
   font: 400 12px/1 var(--font);
   letter-spacing: var(--track-12);
   white-space: nowrap;
 }
 
 button.status:hover {
-  background: var(--fill-4);
+  background: rgb(255 255 255 / 0.1);
 }
 
-.capsule-divider {
-  width: 1px;
-  height: 16px;
-  background: var(--separator);
+button.status:active {
+  background: rgb(255 255 255 / 0.16);
 }
 
 .status .dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   flex: none;
   border-radius: 50%;
   background: var(--orange);
@@ -407,7 +563,7 @@ button.status:hover {
 }
 
 .status-text {
-  color: var(--label);
+  color: #ffffff;
   font-weight: 500;
 }
 
@@ -415,96 +571,21 @@ button.status:hover {
   font-variant-numeric: tabular-nums;
 }
 
-.demo-tag {
-  display: inline-flex;
-  align-items: center;
-  height: 26px;
-  padding: 0 10px;
-  border: 1px dashed var(--orange);
-  border-radius: 999px;
-  color: var(--orange-text);
-  font: 600 11px/1 var(--font);
-  letter-spacing: var(--track-11);
+/* Rodillo de dígitos (como numericText): solo rueda el dígito que cambió. */
+.rolling {
+  display: inline-block;
+  overflow: clip;
+  vertical-align: bottom;
 }
 
-.capsule-btn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: var(--control-h);
-  padding: 0 12px;
-  border: 0;
-  border-radius: 999px;
-  color: var(--label-2);
-  font: 600 12px/1 var(--font);
-  letter-spacing: var(--track-12);
-  white-space: nowrap;
+/* Cada carácter va en su caja: pre conserva los espacios. */
+.roll {
+  display: inline-block;
+  white-space: pre;
 }
 
-.segment-capsule {
-  gap: 2px;
-  padding: 0 3px;
-}
-
-.segment-capsule .capsule-btn {
-  height: calc(var(--control-h) - 6px);
-  padding: 0 11px;
-  background: transparent;
-}
-
-.capsule-btn:hover {
-  color: var(--label);
-}
-
-.segment-capsule .capsule-btn:hover {
-  background: var(--fill-4);
-}
-
-.capsule-btn.is-active,
-.segment-capsule .capsule-btn.is-active {
-  background: var(--pgm);
-  color: var(--on-pgm);
-}
-
-.capsule-btn--blue.is-active,
-.segment-capsule .capsule-btn--blue.is-active {
-  background: var(--accent-fill);
-  color: var(--on-accent);
-}
-
-.sync-btn {
-  padding: 0 14px;
-  transition: scale var(--dur-micro-snappy) var(--ease-snappy);
-}
-
-.sync-btn[aria-pressed="true"] {
-  color: var(--label);
-}
-
-.sync-btn[aria-pressed="true"] .icon {
-  color: var(--purple-text);
-}
-
-.icon-btn {
-  position: relative;
-  justify-content: center;
-  width: var(--control-h);
-  padding: 0;
-  border: 0;
-  color: var(--label-2);
-  transition: scale var(--dur-micro-snappy) var(--ease-snappy);
-}
-
-.icon-btn:hover {
-  color: var(--label);
-}
-
-/* El vidrio se expande un poco al tocarlo. */
-:is(.sync-btn, .icon-btn):active {
-  scale: calc(1 + 0.04 * var(--motion));
-  transition-duration: var(--dur-micro);
-  transition-timing-function: var(--ease-smooth);
+.roll-in {
+  animation: roll-in var(--dur-micro-snappy) var(--ease-snappy) backwards;
 }
 
 /* ============================================================
@@ -530,7 +611,7 @@ button.status:hover {
 }
 
 /* ============================================================
-   Monitores: contenido, sin vidrio salvo los rótulos sobre la imagen
+   Monitores: contenido
    ============================================================ */
 
 /* El PGM, que lleva el video, ocupa dos tercios en 16:9. El PVW no lleva video
@@ -596,7 +677,7 @@ button.status:hover {
   inset: 0;
   z-index: 2;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 2px var(--tally), inset 0 0 0 3px rgb(0 0 0 / 0.35);
+  box-shadow: inset 0 0 0 2px var(--tally);
   pointer-events: none;
 }
 
@@ -625,8 +706,8 @@ button.status:hover {
 }
 
 .placeholder-icon {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   margin-bottom: var(--space-2);
   color: rgb(235 235 245 / 0.3);
 }
@@ -648,21 +729,19 @@ button.status:hover {
   letter-spacing: var(--track-12);
 }
 
-/* Rótulos sobre la imagen: vidrio Clear con atenuación, así el texto blanco se
-   lee aunque el video sea muy claro (≥ 4,5:1). Sin desenfoque: costaría GPU en
-   cada cuadro del video. */
+/* Rótulos sobre la imagen: atenuación del 60 %, así el texto blanco se lee
+   aunque el video sea muy claro (≥ 4,5:1). Sin desenfoque. */
 .screen-label,
 .screen-badge {
-  --glass-rim-top: rgb(255 255 255 / 0.34);
-  --glass-rim-bottom: rgb(255 255 255 / 0.07);
   position: absolute;
   top: var(--space-3);
   z-index: 3;
   display: inline-flex;
   align-items: center;
-  height: 26px;
+  height: 24px;
   border-radius: 999px;
   background: rgb(0 0 0 / 0.6);
+  box-shadow: inset 0 0 0 var(--hair) rgb(255 255 255 / 0.14);
   color: #ffffff;
   white-space: nowrap;
 }
@@ -670,33 +749,31 @@ button.status:hover {
 .screen-label {
   left: var(--space-3);
   max-width: calc(100% - 136px);
-  gap: var(--space-2);
-  padding: 0 11px 0 3px;
+  gap: 7px;
+  padding: 0 10px 0 3px;
   font: 500 12px/1 var(--font);
   letter-spacing: var(--track-12);
-}
-
-.screen-badge {
-  right: var(--space-3);
-  gap: 6px;
-  padding: 0 11px 0 9px;
-  font: 600 11px/1 var(--font);
-  letter-spacing: var(--track-11);
-}
-
-.screen-badge::after {
-  content: "";
-  order: -1;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--red);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 30%, transparent);
 }
 
 /* El PVW no tiene insignia a la derecha: su rótulo usa todo el ancho. */
 .monitor--pvw .screen-label {
   max-width: calc(100% - 2 * var(--space-3));
+}
+
+.screen-badge {
+  right: var(--space-3);
+  gap: 6px;
+  padding: 0 10px 0 9px;
+  font: 600 11px/1 var(--font);
+  letter-spacing: var(--track-11);
+}
+
+.screen-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--red);
 }
 
 .screen-label-text {
@@ -706,10 +783,10 @@ button.status:hover {
 
 .tally-tag {
   flex: none;
-  padding: 4px 8px;
+  padding: 3px 7px;
   border-radius: 999px;
-  font: 700 11px/1 var(--font);
-  letter-spacing: var(--track-11);
+  font: 700 10px/1 var(--font);
+  letter-spacing: 0.3px;
 }
 
 .tally-tag--pgm {
@@ -775,7 +852,7 @@ button.status:hover {
 .row--keyers {
   align-items: flex-start;
   padding-top: var(--space-3);
-  border-top: 1px solid var(--separator);
+  border-top: var(--hair) solid var(--separator);
 }
 
 .row--keyers .row-label {
@@ -842,7 +919,7 @@ button.status:hover {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-/* Teclas: capa de contenido, sólidas. El color cambia en el mismo cuadro (el
+/* Teclas: capa de contenido, planas. El color cambia en el mismo cuadro (el
    tally no se anima); solo la escala al presionar tiene spring. */
 .key {
   position: relative;
@@ -858,7 +935,7 @@ button.status:hover {
   border-radius: var(--radius-inner);
   corner-shape: squircle;
   background: var(--key);
-  box-shadow: inset 0 0 0 1px var(--key-border), inset 0 1px 0 var(--key-sheen);
+  box-shadow: inset 0 0 0 1px var(--key-border);
   color: var(--label);
   font: 600 14px/17px var(--font);
   letter-spacing: var(--track-14);
@@ -886,54 +963,44 @@ button.status:hover {
   white-space: nowrap;
 }
 
-/* Tally: tecla iluminada, con un halo suave como un botón con luz. */
+/* Tally: relleno sólido, nada más. */
 .key.is-program {
   background: var(--pgm);
-  box-shadow: 0 0 0 1px var(--pgm), 0 6px 18px -6px var(--pgm);
   color: var(--on-pgm);
 }
 
 .key.is-preview {
   background: var(--pvw);
-  box-shadow: 0 6px 18px -6px var(--pvw);
   color: var(--on-pvw);
 }
 
-.key:is(.is-program, .is-preview) .key-sub {
-  color: inherit;
-}
-
-/* Luces de los botones del panel según la clase que manda el equipo. */
+/* Luces de los botones del panel según la clase que manda el equipo: relleno
+   teñido y texto del mismo color, sin contorno. */
 .key.light-red {
-  background: color-mix(in srgb, var(--red) 20%, var(--key));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 75%, transparent);
+  background: color-mix(in srgb, var(--red) 22%, var(--key));
   color: var(--lit-red-text);
 }
 
 .key.light-green {
-  background: color-mix(in srgb, var(--green) 20%, var(--key));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 75%, transparent);
+  background: color-mix(in srgb, var(--green) 22%, var(--key));
   color: var(--lit-green-text);
 }
 
 .key.light-yellow {
-  background: color-mix(in srgb, var(--yellow) 22%, var(--key));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--yellow) 80%, transparent);
+  background: color-mix(in srgb, var(--yellow) 26%, var(--key));
   color: var(--lit-yellow-text);
 }
 
 .key.light-blue {
-  background: color-mix(in srgb, var(--blue) 20%, var(--key));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 75%, transparent);
+  background: color-mix(in srgb, var(--blue) 22%, var(--key));
   color: var(--lit-blue-text);
 }
 
 .key.light-white {
-  background: var(--key-hover);
-  box-shadow: inset 0 0 0 1px var(--label-2);
+  background: var(--key-press);
 }
 
-.key:is(.light-red, .light-green, .light-yellow, .light-blue, .light-white) .key-sub {
+.key:is(.is-program, .is-preview, .light-red, .light-green, .light-yellow, .light-blue) .key-sub {
   color: inherit;
 }
 
@@ -948,7 +1015,7 @@ button.status:hover {
   align-items: stretch;
   gap: var(--space-3);
   padding-left: var(--space-4);
-  border-left: 1px solid var(--separator);
+  border-left: var(--hair) solid var(--separator);
 }
 
 .trans-keys {
@@ -974,13 +1041,11 @@ button.status:hover {
 
 .key--trans.is-amber {
   background: var(--trans);
-  box-shadow: 0 6px 18px -6px var(--trans);
   color: var(--on-trans);
 }
 
 .key--trans.is-ftb {
   background: color-mix(in srgb, var(--red) 22%, var(--key));
-  box-shadow: inset 0 0 0 1px var(--red);
   color: var(--lit-red-text);
   animation: blink 1s steps(2, jump-none) infinite;
 }
@@ -1001,7 +1066,6 @@ button.status:hover {
   min-height: 150px;
   border-radius: 999px;
   background: var(--fill-4);
-  box-shadow: inset 0 0 0 1px var(--hairline), inset 0 2px 6px var(--shadow-1);
   touch-action: none;
 }
 
@@ -1015,7 +1079,7 @@ button.status:hover {
   width: 2px;
   margin-left: -1px;
   border-radius: 1px;
-  background: var(--separator);
+  background: var(--fill);
 }
 
 .tbar-fill {
@@ -1029,7 +1093,7 @@ button.status:hover {
   background: var(--trans);
 }
 
-/* La manija: una perilla que se eleva mientras se arrastra. */
+/* La manija: una perilla blanca y plana que se eleva solo mientras se arrastra. */
 .tbar-handle {
   position: absolute;
   top: 3px;
@@ -1042,11 +1106,10 @@ button.status:hover {
   justify-content: center;
   gap: 3px;
   border-radius: 999px;
-  background: linear-gradient(180deg, #ffffff, #ececf0);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 3px 8px rgb(0 0 0 / 0.22), inset 0 0 0 0.5px rgb(0 0 0 / 0.14);
+  background: #ffffff;
+  box-shadow: 0 0.5px 1px rgb(0 0 0 / 0.22), 0 2px 6px rgb(0 0 0 / 0.16);
   cursor: grab;
   touch-action: none;
-  will-change: translate;
   transition:
     scale var(--dur-micro-snappy) var(--ease-snappy),
     box-shadow var(--dur-micro) var(--ease-smooth);
@@ -1056,20 +1119,16 @@ button.status:hover {
   width: 14px;
   height: 1.5px;
   border-radius: 1px;
-  background: rgb(0 0 0 / 0.3);
+  background: rgb(0 0 0 / 0.26);
 }
 
 .tbar.is-dragging .tbar-handle {
   cursor: grabbing;
-  scale: calc(1 + 0.08 * var(--motion));
-  box-shadow: 0 2px 4px rgb(0 0 0 / 0.3), 0 10px 24px rgb(0 0 0 / 0.32), inset 0 0 0 0.5px rgb(0 0 0 / 0.14), 0 0 0 4px color-mix(in srgb, var(--trans) 30%, transparent);
+  scale: calc(1 + 0.06 * var(--motion));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 8px 20px rgb(0 0 0 / 0.24);
+  will-change: translate, scale;
   transition-duration: var(--dur-micro);
   transition-timing-function: var(--ease-smooth);
-}
-
-.tbar.is-mid .tbar-handle {
-  outline: 2px solid var(--trans);
-  outline-offset: 1px;
 }
 
 .tbar-value {
@@ -1094,43 +1153,40 @@ button.status:hover {
   overflow: hidden;
 }
 
-/* Control segmentado: el "pulgar" de vidrio se desliza con un spring hasta la
-   opción elegida. Se usa en las pestañas y en Apariencia. */
+/* Control segmentado: el pulgar se desliza con un spring hasta la pestaña
+   elegida. */
 .segmented {
   position: relative;
   display: grid;
   grid-auto-columns: minmax(0, 1fr);
   grid-auto-flow: column;
   height: var(--control-h);
-  padding: 2px;
+  padding: 3px;
   border-radius: 999px;
   background: var(--fill-3);
 }
 
 .segmented-thumb {
   position: absolute;
-  top: 2px;
-  bottom: 2px;
-  left: 2px;
-  width: calc((100% - 4px) / 3);
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / 3);
   border-radius: 999px;
-  background: light-dark(#ffffff, rgb(255 255 255 / 0.16));
-  box-shadow: 0 1px 3px var(--shadow-1), 0 0 0 0.5px light-dark(rgb(0 0 0 / 0.06), rgb(255 255 255 / 0.08));
+  background: light-dark(#ffffff, #636366);
+  box-shadow: 0 1px 2px light-dark(rgb(0 0 0 / 0.12), rgb(0 0 0 / 0.3)), 0 0 0 var(--hair) light-dark(rgb(0 0 0 / 0.04), transparent);
   transition: translate var(--dur-snappy) var(--ease-snappy);
 }
 
-.tabs:has(> .tab:nth-of-type(2)[aria-selected="true"]) .segmented-thumb,
-.segmented--choice:has(> .segment:nth-of-type(2) > input:checked) .segmented-thumb {
+.tabs:has(> .tab:nth-of-type(2)[aria-selected="true"]) .segmented-thumb {
   translate: 100% 0;
 }
 
-.tabs:has(> .tab:nth-of-type(3)[aria-selected="true"]) .segmented-thumb,
-.segmented--choice:has(> .segment:nth-of-type(3) > input:checked) .segmented-thumb {
+.tabs:has(> .tab:nth-of-type(3)[aria-selected="true"]) .segmented-thumb {
   translate: 200% 0;
 }
 
-.tab,
-.segment {
+.tab {
   position: relative;
   z-index: 1;
   display: flex;
@@ -1141,30 +1197,17 @@ button.status:hover {
   border-radius: 999px;
   background: transparent;
   color: var(--label-2);
-  font: 600 12px/1 var(--font);
-  letter-spacing: var(--track-12);
+  font: 500 13px/1 var(--font);
+  letter-spacing: var(--track-13);
 }
 
-.tab:hover,
-.segment:hover {
+.tab:hover {
   color: var(--label);
 }
 
-.tab[aria-selected="true"],
-.segment:has(> input:checked) {
+.tab[aria-selected="true"] {
   color: var(--label);
-}
-
-.segment > input {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  opacity: 0;
-}
-
-.segment:has(> input:focus-visible) {
-  outline: 3px solid color-mix(in srgb, var(--blue) 60%, transparent);
-  outline-offset: 1px;
+  font-weight: 600;
 }
 
 .tabs {
@@ -1178,6 +1221,11 @@ button.status:hover {
   display: flex;
   flex-direction: column;
   padding: var(--space-4) var(--card-pad) var(--card-pad);
+}
+
+/* El contenido sigue al contenedor: entra con un fundido y 6 px de recorrido. */
+.panel:not([hidden]) {
+  animation: panel-in var(--dur-micro) var(--ease-smooth) backwards;
 }
 
 .panel--scroll {
@@ -1206,7 +1254,7 @@ button.status:hover {
 /* Encabezados en tipo título, como en el sistema 26 (no en MAYÚSCULAS). */
 .section-title {
   color: var(--label);
-  font: 600 13px/16px var(--font);
+  font: 700 13px/16px var(--font);
   letter-spacing: var(--track-13);
 }
 
@@ -1258,7 +1306,6 @@ button.status:hover {
 .strip--master {
   flex-grow: 1.15;
   background: var(--fill-3);
-  box-shadow: inset 0 0 0 1px var(--separator);
 }
 
 .strip-name {
@@ -1322,7 +1369,7 @@ button.status:hover {
   background: linear-gradient(to top, var(--fader-color) var(--fill), var(--fill-2) var(--fill));
 }
 
-/* La perilla blanca del HIG; se eleva un poco mientras se arrastra. */
+/* La perilla blanca y plana del HIG; se eleva un poco mientras se arrastra. */
 .fader::-webkit-slider-thumb {
   width: 22px;
   height: 14px;
@@ -1331,7 +1378,7 @@ button.status:hover {
   border-radius: 999px;
   appearance: none;
   background: #ffffff;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 6px rgb(0 0 0 / 0.18), inset 0 0 0 0.5px rgb(0 0 0 / 0.14);
+  box-shadow: 0 0.5px 1px rgb(0 0 0 / 0.25), 0 1px 4px rgb(0 0 0 / 0.14);
   transition: scale var(--dur-micro-snappy) var(--ease-snappy);
 }
 
@@ -1346,8 +1393,8 @@ button.status:hover {
 }
 
 .mute {
-  width: 32px;
-  height: 24px;
+  width: 34px;
+  height: 28px;
   border: 0;
   border-radius: 999px;
   background: var(--fill-3);
@@ -1359,6 +1406,10 @@ button.status:hover {
 .mute:hover {
   background: var(--fill-2);
   color: var(--label);
+}
+
+.mute:active {
+  background: var(--fill);
 }
 
 .mute.is-muted {
@@ -1402,12 +1453,16 @@ button.status:hover {
   top: 0;
   left: 30px;
   right: 0;
-  height: 1px;
+  height: var(--hair);
   background: var(--separator);
 }
 
 .scene:hover {
   background: var(--fill-4);
+}
+
+.scene:active {
+  background: var(--fill-3);
 }
 
 .scene-dot {
@@ -1476,7 +1531,7 @@ button.status:hover {
   top: 0;
   left: 12px;
   right: 0;
-  height: 1px;
+  height: var(--hair);
   background: var(--separator);
 }
 
@@ -1547,25 +1602,29 @@ code {
 }
 
 /* ============================================================
-   Botones y campos
+   Botones
    ============================================================ */
 
 .btn {
-  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: var(--control-h);
+  height: 32px;
   padding: 0 16px;
   border: 0;
   border-radius: 999px;
   background: var(--fill-3);
   color: var(--label);
-  font: 600 13px/1 var(--font);
+  font: 500 13px/1 var(--font);
   letter-spacing: var(--track-13);
   white-space: nowrap;
   transition: scale var(--dur-micro-snappy) var(--ease-snappy);
+}
+
+.btn .icon {
+  width: 14px;
+  height: 14px;
 }
 
 .btn:hover {
@@ -1583,6 +1642,7 @@ code {
 .btn--primary:hover {
   background: var(--accent-fill);
   color: var(--on-accent);
+  font-weight: 600;
 }
 
 .btn--primary:active {
@@ -1603,127 +1663,20 @@ code {
   scale: 1;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  color: var(--label-2);
-  font: 400 12px/15px var(--font);
-  letter-spacing: var(--track-12);
-}
-
-.field input {
-  height: var(--control-h);
-  padding: 0 12px;
-  border: 0;
-  border-radius: 9px;
-  corner-shape: squircle;
-  background: light-dark(rgb(255 255 255 / 0.9), rgb(0 0 0 / 0.28));
-  box-shadow: inset 0 0 0 1px var(--separator);
-  color: var(--label);
-  font: 400 13px/16px var(--font);
-  letter-spacing: var(--track-13);
-}
-
-.field input::placeholder {
-  color: var(--label-3);
-}
-
-.field input:focus-visible {
-  outline-offset: 0;
-  box-shadow: inset 0 0 0 1px var(--blue);
-}
-
-.field-row {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-3);
-}
-
-.field-row .field {
-  flex: 1;
-}
-
-.field-row .field--port {
-  flex: 0 0 104px;
-}
-
-.check {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--label);
-}
-
-.check input {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  accent-color: var(--accent-fill);
-}
-
-.hint {
-  margin: 0;
-  color: var(--label-2);
-  font: 400 12px/16px var(--font);
-  letter-spacing: var(--track-12);
-}
-
-.hint:empty {
-  display: none;
-}
-
-.discovery {
-  display: flex;
-  flex-direction: column;
-  border-radius: var(--radius-inner);
-  corner-shape: squircle;
-  background: var(--fill-4);
-}
-
-.discovery > .hint {
-  padding: 10px 12px;
-}
-
-.discovery-item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: 44px;
-  padding: 8px 8px 8px 12px;
-}
-
-.discovery-item + .discovery-item::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 12px;
-  right: 0;
-  height: 1px;
-  background: var(--separator);
-}
-
-.discovery-item span {
-  flex: 1;
-  color: var(--label-2);
-}
-
 /* ============================================================
-   Ajustes: vidrio grueso que nace del botón que lo abrió
+   Ajustes, con la forma de Ajustes del Sistema
    ============================================================ */
 
 .dialog {
-  width: min(560px, calc(100vw - 32px));
+  width: min(540px, calc(100vw - 32px));
   max-height: calc(100vh - 48px);
   padding: 0;
   overflow: hidden;
   border: 0;
   border-radius: 26px;
   corner-shape: squircle;
-  background: var(--glass-fill-thick);
-  box-shadow: 0 24px 64px var(--shadow-2), 0 4px 16px var(--shadow-1), 0 0 0 0.5px var(--glass-edge);
+  background: var(--sheet);
+  box-shadow: 0 24px 64px var(--shadow-2), 0 4px 16px var(--shadow-1), 0 0 0 var(--hair) var(--hairline);
   color: var(--label);
   user-select: text;
   opacity: 1;
@@ -1731,25 +1684,25 @@ code {
   translate: 0 0;
   transition:
     opacity var(--dur-fade) var(--ease-smooth),
-    scale var(--dur-snappy) var(--ease-snappy),
-    translate var(--dur-snappy) var(--ease-snappy),
-    display var(--dur-snappy) allow-discrete,
-    overlay var(--dur-snappy) allow-discrete;
+    scale var(--dur-smooth) var(--ease-smooth),
+    translate var(--dur-smooth) var(--ease-smooth),
+    display var(--dur-smooth) allow-discrete,
+    overlay var(--dur-smooth) allow-discrete;
 }
 
-/* Al cerrar vuelve por el mismo camino, más rápido y sin rebote. */
+/* Un toque sin impulso: spring sin rebote. Al cerrar vuelve por el mismo
+   camino, más rápido. */
 .dialog:not([open]) {
   opacity: 0;
-  scale: calc(1 - 0.06 * var(--motion));
+  scale: calc(1 - 0.05 * var(--motion));
   translate: 0 calc(-8px * var(--motion));
   transition-duration: 160ms, var(--dur-micro), var(--dur-micro), var(--dur-micro), var(--dur-micro);
-  transition-timing-function: var(--ease-smooth);
 }
 
 @starting-style {
   .dialog[open] {
     opacity: 0;
-    scale: calc(1 - 0.06 * var(--motion));
+    scale: calc(1 - 0.05 * var(--motion));
     translate: 0 calc(-8px * var(--motion));
   }
 }
@@ -1772,19 +1725,30 @@ code {
   }
 }
 
+/* Vidrio grueso de verdad (desenfoque y saturación del fondo) solo sin video;
+   con video, el mismo material opaco, para que el monitor no pierda fluidez. */
+:root:not([data-video="live"]) .dialog {
+  backdrop-filter: blur(var(--sheet-blur)) saturate(180%);
+}
+
+:root[data-video="live"] .dialog {
+  background: var(--sheet-solid);
+}
+
 .dialog-form {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
   max-height: calc(100vh - 48px);
   overflow-y: auto;
-  padding: var(--space-5) var(--space-6);
+  padding: var(--space-5) var(--space-5) var(--space-4);
 }
 
 .dialog-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0 var(--space-1);
 }
 
 .dialog-head h2 {
@@ -1793,9 +1757,8 @@ code {
 }
 
 .close-btn {
-  position: relative;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1807,8 +1770,8 @@ code {
 }
 
 .close-btn .icon {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 
 .close-btn:hover {
@@ -1816,83 +1779,285 @@ code {
   color: var(--label);
 }
 
-.dialog-section {
+.close-btn:active {
+  background: var(--fill);
+}
+
+.form-section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 6px;
+}
+
+.form-header {
+  padding: 0 var(--space-3);
+  color: var(--label);
+  font: 700 13px/16px var(--font);
+  letter-spacing: var(--track-13);
+}
+
+/* Grupo de filas, con una línea fina entre filas. */
+.form-group {
+  border-radius: 12px;
+  corner-shape: squircle;
+  background: var(--group);
+  box-shadow: inset 0 0 0 var(--hair) var(--hairline);
+}
+
+.form-row,
+.discovery-item,
+.discovery > .hint {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 42px;
+  padding: 6px var(--space-3);
+}
+
+.form-group > * + *::before,
+.discovery > * + *::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: var(--space-3);
+  right: 0;
+  height: var(--hair);
+  background: var(--separator);
+}
+
+.form-group > .discovery {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-label {
+  color: var(--label);
+  font: 400 13px/16px var(--font);
+  letter-spacing: var(--track-13);
+}
+
+.form-input {
+  flex: 0 1 240px;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--input);
+  box-shadow: inset 0 0 0 var(--hair) var(--hairline);
+  color: var(--label);
+  font: 400 13px/16px var(--font);
+  letter-spacing: var(--track-13);
+  text-align: right;
+}
+
+.form-input::placeholder {
+  color: var(--label-3);
+}
+
+.form-input:focus-visible {
+  outline-offset: 0;
+  text-align: left;
+}
+
+.form-input--short {
+  flex-basis: 96px;
+}
+
+.form-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.form-footer {
+  margin: 0;
+  padding: 0 var(--space-3);
+  color: var(--label-2);
+  font: 400 12px/16px var(--font);
+  letter-spacing: var(--track-12);
+}
+
+.form-footer:empty {
+  display: none;
+}
+
+.discovery-item span {
+  flex: 1;
+  color: var(--label-2);
+}
+
+.discovery > .hint {
+  margin: 0;
+  color: var(--label-2);
+  font: 400 12px/16px var(--font);
+}
+
+/* Interruptor: el pulgar se desliza con un spring, como en macOS. */
+.switch {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 22px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  appearance: none;
+  transition: background-color var(--dur-fade) var(--ease-smooth);
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.22), 0 0 0 var(--hair) rgb(0 0 0 / 0.04);
+  transition: translate var(--dur-micro-snappy) var(--ease-snappy);
+}
+
+.switch:checked {
+  background: var(--accent-fill);
+}
+
+.switch:checked::after {
+  translate: 16px 0;
+}
+
+/* Apariencia con miniaturas, como en Ajustes del Sistema. */
+.appearance {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+}
+
+.appearance-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+
+.appearance-option input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+}
+
+.appearance-preview {
+  position: relative;
+  width: 100%;
+  max-width: 112px;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 9px;
+  corner-shape: squircle;
+  box-shadow: 0 0 0 var(--hair) var(--separator), 0 1px 3px var(--shadow-1);
+  transition: box-shadow var(--dur-fade) var(--ease-smooth);
+}
+
+.appearance-preview--light {
+  --mini-bg: #f2f2f7;
+  --mini-card: #ffffff;
+}
+
+.appearance-preview--dark {
+  --mini-bg: #000000;
+  --mini-card: #1c1c1e;
+}
+
+.appearance-preview--auto {
+  --mini-bg: linear-gradient(135deg, #f2f2f7 0 50%, #000000 50% 100%);
+  --mini-card: linear-gradient(135deg, #ffffff 0 50%, #1c1c1e 50% 100%);
+}
+
+.appearance-preview {
+  background: var(--mini-bg);
+}
+
+/* La barra con su isla y la consola en miniatura, con una tecla roja y una
+   verde. */
+.appearance-preview > span:first-child {
+  position: absolute;
+  top: 12%;
+  left: 32%;
+  right: 32%;
+  height: 12%;
+  border-radius: 999px;
+  background: #000000;
+  box-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.25);
+}
+
+.appearance-preview > span:last-child {
+  position: absolute;
+  inset: auto 9% 10% 9%;
+  height: 50%;
+  border-radius: 5px;
+  background: var(--mini-card);
+}
+
+.appearance-preview > span:last-child::before,
+.appearance-preview > span:last-child::after {
+  content: "";
+  position: absolute;
+  top: 26%;
+  width: 22%;
+  height: 48%;
+  border-radius: 3px;
+}
+
+.appearance-preview > span:last-child::before {
+  left: 14%;
+  background: #e9152d;
+}
+
+.appearance-preview > span:last-child::after {
+  left: 42%;
+  background: #30d158;
+}
+
+.appearance-name {
+  color: var(--label-2);
+  font: 500 12px/15px var(--font);
+  letter-spacing: var(--track-12);
+}
+
+.appearance-option:has(input:checked) .appearance-preview {
+  box-shadow: 0 0 0 3px var(--blue), 0 1px 3px var(--shadow-1);
+}
+
+.appearance-option:has(input:checked) .appearance-name {
+  color: var(--label);
+  font-weight: 600;
+}
+
+.appearance-option:has(input:focus-visible) .appearance-preview {
+  outline: 3px solid color-mix(in srgb, var(--blue) 60%, transparent);
+  outline-offset: 3px;
 }
 
 .dialog-actions {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  justify-content: flex-end;
   gap: var(--space-2);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--separator);
+  padding: var(--space-4) var(--space-1) 0;
+  border-top: var(--hair) solid var(--separator);
 }
 
 .form-error {
   margin: 0;
+  padding: 0 var(--space-3);
   color: var(--red-text);
   font: 500 12px/16px var(--font);
   letter-spacing: var(--track-12);
-}
-
-/* Vidrio grueso de verdad (desenfoque y saturación del fondo) solo sin video;
-   con video, el mismo material casi opaco, para que el monitor no pierda
-   fluidez. */
-:root:not([data-video="live"]) :is(.dialog, .toast) {
-  backdrop-filter: blur(var(--glass-blur-thick)) saturate(180%);
-}
-
-:root[data-video="live"] :is(.dialog, .toast) {
-  background: var(--glass-solid);
-}
-
-/* ============================================================
-   Avisos: cápsula de vidrio arriba, sobre los monitores
-   ============================================================ */
-
-.toast {
-  position: fixed;
-  top: calc(var(--toolbar-h) + var(--space-3));
-  left: 50%;
-  z-index: 10;
-  max-width: min(70vw, 560px);
-  padding: 10px 18px;
-  border-radius: 999px;
-  background: var(--glass-fill-thick);
-  box-shadow: var(--elevation-float), 0 0 0 0.5px var(--glass-edge);
-  color: var(--label);
-  font: 500 13px/18px var(--font);
-  letter-spacing: var(--track-13);
-  text-align: center;
-  opacity: 1;
-  scale: 1;
-  translate: -50% 0;
-  transition:
-    opacity var(--dur-fade) var(--ease-smooth),
-    scale var(--dur-snappy) var(--ease-snappy),
-    translate var(--dur-snappy) var(--ease-snappy),
-    visibility 0s;
-}
-
-@starting-style {
-  .toast[data-state="open"] {
-    opacity: 0;
-    scale: calc(1 - 0.06 * var(--motion));
-    translate: -50% calc(-10px * var(--motion));
-  }
-}
-
-.toast[data-state="closed"] {
-  visibility: hidden;
-  opacity: 0;
-  scale: calc(1 - 0.06 * var(--motion));
-  translate: -50% calc(-10px * var(--motion));
-  transition-duration: 160ms, var(--dur-micro), var(--dur-micro), 0s;
-  transition-timing-function: var(--ease-smooth);
-  transition-delay: 0s, 0s, 0s, var(--dur-micro);
 }
 
 /* ============================================================
@@ -1930,6 +2095,20 @@ code {
   }
 }
 
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    translate: 0 calc(6px * var(--motion));
+  }
+}
+
+@keyframes roll-in {
+  from {
+    opacity: 0;
+    translate: 0 0.55em;
+  }
+}
+
 /* ============================================================
    Accesibilidad
    ============================================================ */
@@ -1953,7 +2132,8 @@ code {
     outline-offset: -5px;
   }
 
-  .segmented-thumb {
+  .segmented-thumb,
+  .switch::after {
     transition: none;
   }
 
@@ -1963,7 +2143,7 @@ code {
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  :root:not([data-video="live"]) :is(.dialog, .toast) {
+  :root:not([data-video="live"]) .dialog {
     backdrop-filter: none;
   }
 
@@ -1974,7 +2154,7 @@ code {
 }
 
 @media (prefers-contrast: more) {
-  :root:not([data-video="live"]) :is(.dialog, .toast) {
+  :root:not([data-video="live"]) .dialog {
     backdrop-filter: none;
   }
 
@@ -1984,7 +2164,8 @@ code {
     box-shadow: inset 0 0 0 1px #ffffff;
   }
 
-  .segmented {
+  .segmented,
+  .form-group {
     box-shadow: inset 0 0 0 1px var(--separator);
   }
 }
@@ -2028,6 +2209,20 @@ code {
     padding-block: var(--space-2);
   }
 
+  /* La isla deja de flotar: va en su propia fila, centrada. */
+  .island {
+    position: relative;
+    top: auto;
+    left: auto;
+    order: 3;
+    margin: 0 auto;
+    translate: none;
+  }
+
+  .island-message {
+    max-width: calc(100vw - 48px);
+  }
+
   .workspace {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -2048,7 +2243,7 @@ code {
     justify-content: center;
     padding-top: var(--space-3);
     padding-left: 0;
-    border-top: 1px solid var(--separator);
+    border-top: var(--hair) solid var(--separator);
     border-left: 0;
   }
 
@@ -2058,12 +2253,41 @@ code {
 }
 
 @media (max-width: 640px) {
+  .toolbar-trail {
+    flex-wrap: wrap;
+  }
+
   .monitors {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .monitor--pvw .screen {
+    aspect-ratio: 16 / 9;
+  }
+
   .row {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+  }
+
+  .row-label {
+    width: auto;
+  }
+
+  .rows .keys {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .rows .keys--small {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .form-row {
+    flex-wrap: wrap;
+  }
+
+  .form-input {
+    flex-basis: 100%;
+    text-align: left;
   }
 }
