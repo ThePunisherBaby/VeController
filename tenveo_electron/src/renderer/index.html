@@ -173,9 +173,9 @@
               <span>Fuente</span>
               <select id="video-source">
                 <option value="off">Sin video</option>
+                <option value="pull">Red: video del PC500 (recomendado)</option>
                 <option value="push">Red: el PC500 transmite a esta Mac</option>
-                <option value="pull">Red: leer el servidor RTMP del PC500</option>
-                <option value="usb">USB: salida de video del PC500</option>
+                <option value="usb">USB: captura de la salida de video</option>
               </select>
             </label>
             <label class="field" id="camera-field" hidden>
@@ -184,11 +184,11 @@
             </label>
             <p class="status-line" id="video-status">Sin video.</p>
             <div class="button-row" id="video-actions" hidden>
-              <button class="btn btn--primary" type="button" data-action="start-device-stream">Enviar video a esta Mac</button>
-              <button class="btn" type="button" data-action="stop-device-stream">Detener</button>
+              <button class="btn btn--primary" type="button" data-action="start-device-stream" id="start-stream">Encender STREAM</button>
+              <button class="btn" type="button" data-action="stop-device-stream" id="stop-stream">Apagar STREAM</button>
             </div>
             <div class="manual" id="video-manual" hidden>
-              <span>Para configurarlo a mano en el PC500:</span>
+              <span id="video-manual-label"></span>
               <code id="video-server"></code>
               <span>Clave: <code id="video-key"></code></span>
             </div>

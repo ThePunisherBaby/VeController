@@ -62,7 +62,10 @@ const els = {
   videoCamera: $('video-camera'),
   videoStatus: $('video-status'),
   videoActions: $('video-actions'),
+  startStream: $('start-stream'),
+  stopStream: $('stop-stream'),
   videoManual: $('video-manual'),
+  videoManualLabel: $('video-manual-label'),
   videoServer: $('video-server'),
   videoKey: $('video-key'),
   dialog: $('settings-dialog'),
@@ -84,6 +87,10 @@ const els = {
 
 const backend = await connectBackend();
 document.documentElement.dataset.platform = backend.kind;
+// En el navegador no hay proceso principal que reciba el video por red.
+for (const option of [...els.videoSource.options]) {
+  if (backend.kind !== 'electron' && (option.value === 'pull' || option.value === 'push')) option.remove();
+}
 
 let snapshot = null;
 let renderQueued = false;
@@ -147,7 +154,7 @@ const panelKeys = new Map();
 function buildPanelButtons() {
   // Las capas van en dos filas, como en el panel del equipo: SET 1 abre la
   // primera y SET 2 la segunda.
-  const mainIds = new Set(['stream', 'stream_2', 'rec', 'still', 'shot']);
+  const mainIds = new Set(['stream', 'rec', 'still', 'shot']);
   let keyerRow = els.keyersA;
   for (const button of PANEL_BUTTONS) {
     if (button.id === 'set_2') keyerRow = els.keyersB;
@@ -357,15 +364,27 @@ function adbSummary(adb) {
   }
 }
 
+// El puente también puede llevar el video por adb en red (cable directo).
+function adbNetworkSummary(adb) {
+  const network = adb?.network;
+  if (!network || network.state === 'off') return '';
+  return network.state === 'ready' ? 'Video por adb en red con el PC500.' : network.message;
+}
+
 // --- Dibujo ---
 
 function setActive(element, active) {
   element.classList.toggle('is-active', Boolean(active));
 }
 
+const isIPv6 = (host) => String(host).includes(':');
+
 function connectionText(sw) {
   if (sw.connection === 'usb') return 'USB';
-  if (sw.connection === 'ethernet') return `Red · ${snapshot.settings.ethernetIp}`;
+  if (sw.connection === 'ethernet') {
+    const ip = snapshot.settings.ethernetIp;
+    return isIPv6(ip) ? 'Red · directo' : `Red · ${ip}`;
+  }
   return sw.lastError && /IP/.test(sw.lastError) ? 'Sin IP' : 'Buscando…';
 }
 
@@ -374,7 +393,7 @@ function renderTopbar(sw, obs, settings, extras) {
   els.hw.classList.toggle('is-on', connected);
   els.hwText.textContent = connectionText(sw);
   els.hwLatency.textContent = connected && Number.isFinite(sw.latencyMs) ? `${sw.latencyMs} ms` : '';
-  els.hw.title = [connected ? sw.endpoint : sw.lastError, adbSummary(extras?.adb)].filter(Boolean).join('\n');
+  els.hw.title = [connected ? sw.endpoint : sw.lastError, adbSummary(extras?.adb), adbNetworkSummary(extras?.adb)].filter(Boolean).join('\n');
   els.demoTag.hidden = !extras?.demo;
 
   const linked = obs.status === 'connected';
@@ -471,24 +490,44 @@ function renderObs(obs) {
   }
 }
 
-function videoStatusText(settings, video) {
+function videoStatusText(settings, video, dv, adb) {
   const source = settings.videoSource;
   if (source === 'off') return { text: 'Sin video en el monitor PGM.', tone: '' };
   if (source === 'usb') return { text: 'Muestra la salida de video USB del PC500.', tone: '' };
-  if (!video || video.state === 'off') return { text: 'Preparando…', tone: '' };
-  if (video.state === 'error') return { text: video.error, tone: 'is-warn' };
-  if (video.state === 'receiving') {
-    return { text: source === 'push' ? `Recibiendo video desde ${video.source || 'el PC500'}.` : 'Leyendo el video del PC500.', tone: 'is-on' };
+  if (video?.state === 'receiving') {
+    const info = video.info;
+    const size = info?.width && info?.height ? ` · ${info.width}×${info.height}${info.fps ? ` · ${info.fps} fps` : ''}` : '';
+    return { text: `En vivo${size}`, tone: 'is-on' };
   }
-  if (source === 'push') return { text: 'Esperando que el PC500 transmita a esta Mac.', tone: '' };
-  return { text: video.error || 'Conectando con el servidor RTMP del PC500…', tone: video.error ? 'is-warn' : '' };
+  if (video?.state === 'error') return { text: video.error, tone: 'is-warn' };
+  if (!dv?.connected) return { text: 'Conecta el PC500 para ver su video.', tone: '' };
+  if (source === 'push') {
+    if (!dv.sameSubnet) {
+      return { text: `Para recibir el video, la Mac necesita una IP de la red del PC500 (${dv.deviceIp}): ponle en Ethernet ${dv.suggestion} con máscara 255.255.255.0.`, tone: 'is-warn' };
+    }
+    return { text: 'Esperando que el PC500 transmita a esta Mac.', tone: '' };
+  }
+  if (!dv.key) return { text: 'Ningún destino de STREAM usa el servidor interno del PC500. En su panel, elige "Default" en uno de los destinos.', tone: 'is-warn' };
+  if (!dv.route) return { text: 'Falta la IP del PC500. Conéctalo una vez por USB o escribe su IP.', tone: 'is-warn' };
+  if (dv.route === 'ip') {
+    const network = adb?.network;
+    if (network?.state === 'connecting') return { text: 'Abriendo el video por el cable de red (adb)…', tone: '' };
+    const why = network?.state === 'error' || network?.state === 'unauthorized' ? `${network.message} ` : '';
+    return { text: `${why}La Mac no está en la red del PC500 (${dv.deviceIp}): conecta el USB o pon en el Ethernet de la Mac la IP ${dv.suggestion} con máscara 255.255.255.0.`, tone: 'is-warn' };
+  }
+  if (!dv.streaming) {
+    if (dv.canStart) return { text: 'STREAM está apagado. Enciéndelo para ver el video aquí: va al servidor interno del PC500 y no sale al aire.', tone: '' };
+    return { text: 'El video aparecerá aquí cuando enciendas STREAM para salir al aire.', tone: '' };
+  }
+  if (video?.error) return { text: video.error, tone: 'is-warn' };
+  return { text: 'Esperando la imagen del PC500…', tone: '' };
 }
 
 function renderDevice(sw, settings, extras) {
   const connected = sw.connection === 'usb' || sw.connection === 'ethernet';
   els.factConnection.textContent = connected ? sw.endpoint : 'Sin conexión';
   els.factLatency.textContent = connected && Number.isFinite(sw.latencyMs) ? `${sw.latencyMs} ms` : '—';
-  els.factIp.textContent = sw.device?.ip || settings.ethernetIp || '—';
+  els.factIp.textContent = sw.device?.ip || (isIPv6(settings.ethernetIp) ? 'IPv6 directo' : settings.ethernetIp) || '—';
   els.factVersion.textContent = sw.device?.version || '—';
   els.streamTime.textContent = sw.device?.streamTime || '—';
   els.recordTime.textContent = sw.device?.recordTime || '—';
@@ -497,18 +536,32 @@ function renderDevice(sw, settings, extras) {
   els.cameraField.hidden = settings.videoSource !== 'usb';
   const network = settings.videoSource === 'push' || settings.videoSource === 'pull';
   const canControl = network && backend.kind === 'electron';
-  els.videoActions.hidden = !canControl;
+  const dv = extras?.deviceVideo;
   const video = extras?.video;
-  const status = videoStatusText(settings, video);
+  els.videoActions.hidden = !canControl;
+  els.startStream.disabled = !(dv?.connected && dv.canStart);
+  els.stopStream.disabled = !(dv?.connected && dv.canStop);
+  const status = videoStatusText(settings, video, dv, extras?.adb);
   els.videoStatus.textContent = status.text;
   els.videoStatus.className = `status-line ${status.tone}`.trim();
 
+  // pull: qué destino del equipo se lee. push: qué poner en el equipo.
+  let label = '';
   let server = '';
-  if (settings.videoSource === 'push' && video?.rtmpUrls?.length) server = video.rtmpUrls.join('  o  ');
-  if (settings.videoSource === 'pull') server = `rtmp://${sw.device?.ip || settings.ethernetIp || '<IP del PC500>'}:1935/live/`;
+  let key = '';
+  if (settings.videoSource === 'pull' && dv?.key) {
+    label = 'Se lee el destino del servidor interno del PC500:';
+    server = `rtmp://${dv.deviceIp || '<IP del PC500>'}:1935/live/`;
+    key = dv.key;
+  } else if (settings.videoSource === 'push' && video?.rtmpUrls?.length) {
+    label = 'Pon en un destino de STREAM del PC500:';
+    server = video.rtmpUrls.join('  o  ');
+    key = settings.videoKey;
+  }
   els.videoManual.hidden = !canControl || !server;
+  els.videoManualLabel.textContent = label;
   els.videoServer.textContent = server;
-  els.videoKey.textContent = settings.videoKey;
+  els.videoKey.textContent = key;
 }
 
 function renderDialog(sw, settings, extras) {
@@ -516,7 +569,7 @@ function renderDialog(sw, settings, extras) {
   for (const button of els.connMode.querySelectorAll('[data-mode]')) {
     button.setAttribute('aria-checked', String(button.dataset.mode === settings.connectionMode));
   }
-  els.adbText.textContent = adbSummary(extras?.adb);
+  els.adbText.textContent = [adbSummary(extras?.adb), adbNetworkSummary(extras?.adb)].filter(Boolean).join(' ');
   els.ipHint.textContent =
     settings.ethernetIpSource === 'auto' && settings.ethernetIp
       ? `IP informada por el equipo: ${settings.ethernetIp}. Sirve para seguir por red si se desconecta el USB.`
@@ -551,9 +604,10 @@ function renderDiscovery(discovery) {
     const row = document.createElement('div');
     row.className = 'discovery-item';
     const ip = document.createElement('code');
-    ip.textContent = device.host;
+    ip.textContent = device.linkLocal ? 'Cable directo' : device.host;
+    ip.title = device.host;
     const info = document.createElement('span');
-    info.textContent = device.version || 'PC500';
+    info.textContent = [device.version || 'PC500', device.reportedIp && `IP ${device.reportedIp}`].filter(Boolean).join(' · ');
     const use = document.createElement('button');
     use.type = 'button';
     use.className = 'btn btn--small';
@@ -681,7 +735,7 @@ const ACTIONS = {
   'use-ip': (t) => useDiscoveredIp(t.dataset.ip),
   'start-device-stream': async () => {
     const response = await send('startDeviceStream');
-    if (response?.ok) showToast(`El PC500 transmite a ${response.result.server} (canal ${response.result.slot}).`);
+    if (response?.ok) showToast(response.result.started ? 'STREAM encendido: el video llega en un momento.' : 'STREAM ya estaba encendido.');
   },
   'stop-device-stream': () => send('stopDeviceStream'),
 };

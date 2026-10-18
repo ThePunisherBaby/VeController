@@ -2,7 +2,9 @@
 
 Este documento detalla el estado actual del proyecto, las funciones implementadas y todo lo que falta por desarrollar, categorizado por área y nivel de prioridad.
 
-> **17 de octubre de 2026:** la consola pasó de Flutter a **Electron** (`tenveo_electron/`), y la versión **1.1.0** suma comunicación por red optimizada, control de todos los botones del panel, video en vivo en el monitor PGM y una interfaz nueva. La app de Flutter (`tenveo_app/`) queda como legado. Lo marcado como "probado con simulador" funciona contra los simuladores del proyecto, pero falta confirmarlo con el PC500 conectado.
+> **17 de octubre de 2026:** la consola pasó de Flutter a **Electron** (`tenveo_electron/`), y la versión **1.1.0** sumó comunicación por red optimizada, control de todos los botones del panel, video en vivo en el monitor PGM y una interfaz nueva. La app de Flutter (`tenveo_app/`) queda como legado.
+>
+> **18 de octubre de 2026 (1.2.0):** probada con un **PC500 real** por cable directo: conexión por IPv6 de enlace local, lectura de estado, Preview, STREAM y video 1080p60 en el monitor PGM por adb en red. Lo marcado como "probado con simulador" todavía falta confirmarlo con el equipo.
 
 ---
 
@@ -13,13 +15,14 @@ Este documento detalla el estado actual del proyecto, las funciones implementada
 - [x] **Sincronización bidireccional:** Cambios reflejados en LEDs físicos y en la interfaz en tiempo real.
 - [x] **Migración a Electron:** Consola completa en [`tenveo_electron/`](tenveo_electron/).
 - [x] **Interfaz minimalista (1.1.0):** Monitores 16:9, consola con capas, barra lateral con pestañas de Audio, OBS y Equipo.
-- [x] **Comunicación por red optimizada (1.1.0):** Modos automático, solo USB y solo red; latido con latencia visible; reconexión en segundos; envío sin cola para la T-Bar y los faders; búsqueda del PC500 en la red local; IP aprendida por USB. Probado con simulador.
-- [x] **Control de todo el panel principal (1.1.0):** PIP, DSK, LOGO, CHROMA, LUMA, ON AIR, SET, STREAM 1, STREAM 2, REC, FREEZE, SHOT, MODE, LOCK, MUTE y USER, con sus luces. Probado con simulador.
-- [x] **Video en el monitor PGM (1.1.0):** Por red (el PC500 transmite por RTMP a la Mac, o la app lee el servidor RTMP del equipo) y por USB (UVC). Probado de punta a punta con un emisor H.264 de prueba.
+- [x] **Comunicación por red optimizada:** Modos automático, solo USB y solo red; latido cada segundo con latencia visible; corte detectado en 3,5 s; reintentos de 250 ms a 2 s; búsqueda del PC500 en la red local (IPv4 e IPv6); IP aprendida por USB. **Probado con el PC500 real** por cable directo, con mediciones contra la 1.0.0 (DOCUMENTACION.md, sección 8).
+- [x] **Cable directo PC500 ↔ Mac (1.2.0):** control por IPv6 de enlace local y video por adb en red, sin configurar la red de la Mac. **Probado con el PC500 real.**
+- [x] **Control de todo el panel principal:** PIP, DSK, LOGO, CHROMA, LUMA, ON AIR, SET, STREAM, REC, FREEZE, SHOT, MODE, LOCK, MUTE y USER, con sus luces. STREAM probado con el PC500 real; el resto, con simulador. STREAM 2 se quitó: el firmware lo tiene desactivado.
+- [x] **Video en el monitor PGM:** Del servidor interno del PC500 (por defecto, **probado con el PC500 real**: 1080p60 con audio), del PC500 transmitiendo a la Mac, y por USB (UVC).
 - [x] **Integración OBS Studio (v5):** Stream, Grabación, Cámara Virtual, escenas y sincronización automática, con contraseña.
 - [x] **Compilación sin Xcode:** App de Mac universal (Intel y Apple Silicon) en `.dmg` y `.zip` con `npm run dist`; versión web con modo demo.
 - [x] **Plug & Play sin scripts:** La app incluye `adb`, detecta el PC500 por USB, reenvía los puertos y los quita al salir.
-- [x] **Pruebas automáticas:** Pruebas del protocolo, la red, OBS, la búsqueda, el video, el puente ADB y la configuración, más pruebas de humo de la app real, la versión web, el modo demo y el video.
+- [x] **Pruebas automáticas:** 98 pruebas del protocolo, la red, IPv6, OBS, la búsqueda, el video, el puente ADB, la configuración y la sintaxis, más pruebas de humo de la app, la versión web, el modo demo, el video y el modo por defecto con STREAM. Diagnóstico (`check-device`) y mediciones (`bench-network`) con el equipo real.
 
 ---
 
@@ -28,8 +31,10 @@ Este documento detalla el estado actual del proyecto, las funciones implementada
 ### 1. Video en Vivo en la Interfaz (Multiview Real)
 
 - [x] **Captura de video USB (UVC):** La salida PGM del PC500 se ve en el monitor de la app.
-- [x] **Video por red:** RTMP del PC500 hacia la Mac, o lectura del servidor RTMP del equipo, sin recodificar.
-- [ ] **Confirmar con el equipo** que el canal de transmisión acepta el destino que configura la app y que su servidor RTMP local responde en `rtmp://<IP>:1935/live/<clave>`.
+- [x] **Video por red:** lectura del servidor RTMP interno del PC500 (SRS) o RTMP del PC500 hacia la Mac, sin recodificar.
+- [x] **Confirmado con el equipo:** el servidor interno responde en `rtmp://<IP>:1935/live/<clave>` (solo IPv4) y con STREAM el equipo publica sus dos destinos a la vez.
+- [ ] **Verlo con una cámara conectada:** en la prueba el PGM estaba en una entrada sin señal y el video llegó negro.
+- [ ] **Probar con el equipo** la ruta USB y el modo en que el PC500 transmite a la Mac.
 - [ ] **Multiview de las 4 cámaras:** El PC500 solo transmite el programa. Ver cada cámara exigiría otra fuente, por ejemplo NDI.
 - [ ] **Baja latencia:** RTMP queda entre medio segundo y un segundo y medio detrás. Bajar de 100 ms requiere otra vía, como NDI o la salida USB.
 
@@ -42,7 +47,7 @@ El análisis del firmware original (`index.js` y `pc.html`) reveló comandos adi
   - Mapear la clave `trans-effect` (soporta más de 30 patrones de cortinilla/wipe).
   - Configurar duración de transición (`trans_interval`) y suavizado de bordes (`trans_softness`).
   - Configurar color del Dip (`dip_color`, `dip_mode`).
-- [x] **Posición precisa del T-Bar:** La app envía `putter` de 0 a 255 durante el arrastre. Probado con simulador.
+- [x] **Posición precisa del T-Bar:** La app envía `putter` de 0 a 255 durante el arrastre. Probado con simulador; falta con el equipo (sale al aire).
 - [ ] **Capas PiP (Picture in Picture):**
   - [x] Activar y desactivar `pip1`, `pip2`, `pip1-on-air`, `pip2-on-air`, DSK, CHROMA y LUMA desde la consola.
   - [ ] Posicionamiento, tamaño y recorte de las ventanas PiP.
@@ -50,13 +55,13 @@ El análisis del firmware original (`index.js` y `pc.html`) reveló comandos adi
   - [x] Encender y apagar `logo1` y `logo2`.
   - [ ] Cargar imágenes de logos (`gfx_logo`).
 - [ ] **Mezclador de Audio Avanzado:**
-  - [x] Mute por canal con los controles del panel. Probado con simulador.
+  - [x] Mute por canal con los controles del panel. Probado con simulador; falta con el equipo (afecta el audio al aire).
   - [ ] Modo AFV (*Audio Follows Video*): la app muestra cuando un canal está en AFV; falta poder activarlo.
   - [ ] Ajuste de retardo de audio por entrada (`audio_in1_delay` a `in4_delay`).
 - [ ] **Grabador y Emisor RTMP Interno del PC500:**
-  - [x] Encender y apagar STREAM 1, STREAM 2 y REC, ver sus tiempos y configurar el destino del canal 2.
+  - [x] Encender y apagar STREAM y REC, y ver sus tiempos. La app lee los dos destinos de STREAM y nunca los cambia.
   - [ ] Mostrar el espacio libre (`udisk-space`, `sdcard-space`) y elegir dónde grabar.
-  - [ ] Editar servidores y claves de transmisión para YouTube u otras plataformas desde la app.
+  - [ ] Editar servidores y claves de transmisión para YouTube u otras plataformas desde la app, con confirmación (el equipo transmite a los dos destinos a la vez).
 - [ ] **Ajustes de Sistema del Hardware:**
   - Brillo de LEDs físicos (`sys_keyledlight`).
   - Control de ventilador interno (`sys_fan`) y retroiluminación (`sys_backlight`).
@@ -86,7 +91,7 @@ El análisis del firmware original (`index.js` y `pc.html`) reveló comandos adi
 ### 5. Empaque, Distribución y Experiencia de Usuario en macOS
 - [x] **ADB embebido (sin dependencia de terminal).**
 - [x] **Compilación Universal / Apple Silicon (ARM64 nativo).**
-- [x] **Instalador `.dmg` drag-and-drop:** `npm run dist` genera `TenveoStudio-1.1.0-universal.dmg`.
+- [x] **Instalador `.dmg` drag-and-drop:** `npm run dist` genera `TenveoStudio-1.2.0-universal.dmg` (225 MB).
 - [ ] **Icono oficial de la aplicación:**
   - Diseñar y asignar el archivo `.icns` (en `tenveo_electron/build/icon.icns`).
 - [ ] **Firma con Developer ID y notarización:**
@@ -108,7 +113,7 @@ gantt
     Red optimizada y búsqueda del PC500     :done, p1b, 1, 3
     Mute real por canal                     :done, p3, 2, 4
     Binario universal (Apple Silicon)       :done, p4, 3, 5
-    Confirmar protocolo con el equipo       :active, p4b, 3, 5
+    Confirmar protocolo con el equipo       :active, p4b, 3, 6
     Mapeo personalizado de escenas OBS     :p2, 4, 6
 
     section Fase 2: Hardware Completo

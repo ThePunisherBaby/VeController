@@ -22,7 +22,6 @@ import {
   cmdCut,
   cmdFtb,
   cmdSelectPreview,
-  cmdStreamTarget,
   cmdTbar,
   cmdVolume,
   createSwitcherState,
@@ -31,20 +30,27 @@ import {
 
 export const CONNECTION_MODES = Object.freeze(['auto', 'usb', 'network']);
 
+// En vivo importa enterarse rápido de un corte: ping cada segundo, conexión
+// muerta tras 4 s sin respuesta y reintentos cada vez más espaciados, desde
+// 250 ms hasta 2 s, para volver enseguida tras un corte breve.
 const DEFAULTS = Object.freeze({
   usbUrl: 'ws://127.0.0.1:8089',
   ethernetPort: 8089,
-  retryMs: 4000,
+  firstRetryMs: 250,
+  retryMs: 2000,
   connectTimeoutMs: 2000,
   switchLiveDelayMs: 150,
-  heartbeatMs: 2000,
-  heartbeatTimeoutMs: 6000,
+  heartbeatMs: 1000,
+  heartbeatTimeoutMs: 4000,
   maxBufferedBytes: 8 * 1024,
   flushMs: 16,
 });
 
 const OPEN = 1;
-const HOST_PATTERN = /^[A-Za-z0-9.\-:]+$/;
+// IPv4, nombre de equipo o IPv6. Una IPv6 de enlace local lleva su interfaz
+// (fe80::1%en0): así se llega a un PC500 conectado directo por cable aunque
+// su IPv4 sea de otra red.
+const HOST_PATTERN = /^[A-Za-z0-9.\-:]+(%[A-Za-z0-9_.-]+)?$/;
 
 function safeClose(ws) {
   try {
@@ -54,8 +60,13 @@ function safeClose(ws) {
   }
 }
 
-function hostForUrl(host) {
-  return host.includes(':') ? `[${host}]` : host;
+// En una URL, la IPv6 va entre corchetes y el % de la zona se escribe %25.
+export function hostForUrl(host) {
+  return host.includes(':') ? `[${host.replace('%', '%25')}]` : host;
+}
+
+export function isLinkLocal(host) {
+  return typeof host === 'string' && /^fe80:/i.test(host);
 }
 
 export function isValidHost(host) {
@@ -69,6 +80,7 @@ export class TenveoService {
   #state = createSwitcherState();
   #emitter = new Emitter();
   #retryTimer = null;
+  #retryDelay = 0;
   #connecting = false;
   #retryRequested = false;
   #running = false;
@@ -251,6 +263,7 @@ export class TenveoService {
 
   #attach(ws, type, label) {
     this.#ws = ws;
+    this.#retryDelay = 0;
     this.#lastMessageAt = Date.now();
     ws.onmessage = (event) => this.#onMessage(event.data);
     ws.onerror = () => {};
@@ -329,10 +342,12 @@ export class TenveoService {
 
   #scheduleRetry() {
     clearTimeout(this.#retryTimer);
+    const { firstRetryMs, retryMs } = this.#options;
+    this.#retryDelay = this.#retryDelay ? Math.min(retryMs, this.#retryDelay * 2) : Math.min(firstRetryMs, retryMs);
     this.#retryTimer = setTimeout(() => {
       this.#retryTimer = null;
       this.#connectLoop();
-    }, this.#options.retryMs);
+    }, this.#retryDelay);
   }
 
   #update(patch) {
@@ -432,10 +447,6 @@ export class TenveoService {
 
   isButtonOn(id) {
     return buttonLight(this.#state.buttons[id]).on;
-  }
-
-  setStreamTarget(slot, server, key) {
-    return this.send(cmdStreamTarget(slot, server, key, this.#state.raw));
   }
 
   setVolume(channelId, db) {

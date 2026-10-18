@@ -13,6 +13,7 @@
 import { EventEmitter } from 'node:events';
 import http from 'node:http';
 import net from 'node:net';
+import AMF from './vendor/node-media-server/protocol/amf.js';
 import Flv from './vendor/node-media-server/protocol/flv.js';
 import Rtmp from './vendor/node-media-server/protocol/rtmp.js';
 import RtmpClient from './vendor/node-media-server/protocol/rtmp_client.js';
@@ -23,6 +24,41 @@ logger.level = 'error';
 
 const STREAM_APP = 'live';
 const MAX_GOP_TAGS = 2048;
+// Sin paquetes durante este tiempo se da el video por cortado, aunque la
+// conexión siga abierta (el servidor del PC500 la mantiene si se apaga STREAM).
+const STALL_MS = 3000;
+
+// Resolución y cuadros por segundo de los metadatos del stream. Los servidores
+// también mandan otros mensajes de datos (onStatus…), que no son metadatos.
+export function videoInfoFromPacket(packet) {
+  if (packet?.codec_type !== 18 || !packet.data?.includes?.('onMetaData')) return null;
+  try {
+    const meta = AMF.decodeAmf0Data(packet.data).dataObj;
+    if (!meta || typeof meta !== 'object') return null;
+    const number = (value) => (Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : 0);
+    return { width: number(meta.width), height: number(meta.height), fps: Math.round(number(meta.framerate)), audio: Boolean(meta.audiocodecid) };
+  } catch {
+    return null;
+  }
+}
+
+// El cliente RTMP usa el analizador de URL estándar, que no acepta IPv6 con
+// zona (fe80::1%en0) y deja los corchetes en el host. Este analizador resuelve
+// las IPv6 entre corchetes y deja el resto al original.
+const BRACKETED = /^rtmp:\/\/\[([^\]]+)\](?::(\d+))?\/([^/?]+)\/([^?]+)(?:\?.*)?$/i;
+const originalParseUrl = RtmpClient.parseUrl;
+export function parseRtmpUrl(rtmpUrl) {
+  const match = BRACKETED.exec(String(rtmpUrl));
+  if (!match) return originalParseUrl(rtmpUrl);
+  return {
+    host: decodeURIComponent(match[1]),
+    port: Number(match[2]) || 1935,
+    app: decodeURIComponent(match[3]),
+    streamName: decodeURIComponent(match[4]),
+    query: {},
+  };
+}
+RtmpClient.parseUrl = parseRtmpUrl;
 
 // Guarda lo necesario para que un reproductor nuevo arranque sin esperar el
 // próximo cuadro clave, y reparte cada etiqueta FLV a los suscriptores.
@@ -59,7 +95,7 @@ export class FlvRelay {
         if (this.#gop.length > MAX_GOP_TAGS) this.#gop = [];
         break;
       case 5:
-        this.#meta = tag;
+        if (packet.data?.includes?.('onMetaData')) this.#meta = tag;
         break;
       default:
         break;
@@ -92,14 +128,22 @@ export class FlvRelay {
 
 export class VideoReceiver extends EventEmitter {
   #relay = new FlvRelay();
+  #stallMs;
   #http = null;
   #httpPort = 0;
   #rtmpServer = null;
   #publisher = null;
   #pull = null;
   #pullTimer = null;
+  #stallTimer = null;
+  #lastPacketAt = 0;
   #config = { mode: 'off' };
-  #status = { mode: 'off', state: 'off', playUrl: '', rtmpUrls: [], key: '', source: '', error: '' };
+  #status = { mode: 'off', state: 'off', playUrl: '', rtmpUrls: [], key: '', source: '', error: '', info: null };
+
+  constructor({ stallMs = STALL_MS } = {}) {
+    super();
+    this.#stallMs = stallMs;
+  }
 
   get status() {
     return this.#status;
@@ -110,14 +154,15 @@ export class VideoReceiver extends EventEmitter {
   }
 
   // mode: 'push' | 'pull' | 'off'. Para push: { key, rtmpPort, rtmpHost }.
-  // Para pull: { url }.
+  // Para pull: { url, tcUrl }. tcUrl es la dirección que se le anuncia al
+  // servidor; algunos la leen, así que conviene que sea una que conozcan.
   async configure(config = {}) {
     const next = { mode: 'off', rtmpPort: 1935, rtmpHost: '0.0.0.0', ...config };
     if (JSON.stringify(next) === JSON.stringify(this.#config)) return this.#status;
     await this.#teardown();
     this.#config = next;
     if (next.mode === 'off') {
-      this.#setStatus({ mode: 'off', state: 'off', playUrl: '', rtmpUrls: [], key: '', source: '', error: '' });
+      this.#setStatus({ mode: 'off', state: 'off', playUrl: '', rtmpUrls: [], key: '', source: '', error: '', info: null });
       return this.#status;
     }
     await this.#startHttp();
@@ -133,6 +178,8 @@ export class VideoReceiver extends EventEmitter {
   async #teardown() {
     clearTimeout(this.#pullTimer);
     this.#pullTimer = null;
+    clearInterval(this.#stallTimer);
+    this.#stallTimer = null;
     if (this.#pull) {
       const client = this.#pull;
       this.#pull = null;
@@ -157,6 +204,13 @@ export class VideoReceiver extends EventEmitter {
   #setStatus(patch) {
     this.#status = { ...this.#status, ...patch };
     this.emit('status', this.#status);
+  }
+
+  #onPacket(packet) {
+    this.#lastPacketAt = Date.now();
+    const info = videoInfoFromPacket(packet);
+    if (info) this.#setStatus({ info });
+    this.#relay.push(packet);
   }
 
   // --- Entrega local en FLV ---
@@ -274,14 +328,14 @@ export class VideoReceiver extends EventEmitter {
       this.#publisher = socket;
       isPublisher = true;
       this.#relay.reset();
-      this.#setStatus({ state: 'receiving', source: socket.remoteAddress ?? '', error: '' });
+      this.#setStatus({ state: 'receiving', source: socket.remoteAddress ?? '', error: '', info: null });
     };
     rtmp.onPlayCallback = () => socket.destroy();
     rtmp.onOutputCallback = (buffer) => {
       if (!socket.destroyed) socket.write(buffer);
     };
     rtmp.onPacketCallback = (packet) => {
-      if (isPublisher) this.#relay.push(packet);
+      if (isPublisher) this.#onPacket(packet);
     };
     socket.on('data', (data) => {
       const error = rtmp.parserData(data);
@@ -292,42 +346,53 @@ export class VideoReceiver extends EventEmitter {
       if (!isPublisher || this.#publisher !== socket) return;
       this.#publisher = null;
       this.#relay.reset();
-      if (this.#config.mode === 'push') this.#setStatus({ state: 'listening', source: '' });
+      if (this.#config.mode === 'push') this.#setStatus({ state: 'listening', source: '', info: null });
     });
   }
 
   // --- Modo pull: la Mac lee el servidor RTMP del PC500 ---
 
-  #startPull({ url }) {
-    this.#setStatus({ mode: 'pull', state: 'connecting', error: '', playUrl: this.playUrl, rtmpUrls: [], key: '', source: url });
+  // Estados: connecting (buscando el servidor), waiting (conectado, sin video:
+  // STREAM apagado) y receiving.
+  #startPull({ url, tcUrl }) {
+    this.#setStatus({ mode: 'pull', state: 'connecting', error: '', playUrl: this.playUrl, rtmpUrls: [], key: '', source: url, info: null });
+    this.#stallTimer = setInterval(() => {
+      if (this.#status.state !== 'receiving' || Date.now() - this.#lastPacketAt < this.#stallMs) return;
+      this.#relay.reset();
+      this.#setStatus({ state: 'waiting', info: null });
+    }, Math.min(1000, this.#stallMs));
     const attempt = async () => {
       if (this.#config.mode !== 'pull') return;
       const client = new RtmpClient();
       this.#pull = client;
-      let receiving = false;
       const retry = (message) => {
         if (this.#pull !== client) return;
         this.#pull = null;
         this.#relay.reset();
-        this.#setStatus({ state: 'connecting', error: message ?? '' });
+        this.#setStatus({ state: 'connecting', error: message ?? '', info: null });
         this.#pullTimer = setTimeout(attempt, 3000);
       };
       client.onPacketCallback = (packet) => {
         if (this.#pull !== client) return;
-        if (!receiving) {
-          receiving = true;
-          this.#setStatus({ state: 'receiving', error: '' });
-        }
-        this.#relay.push(packet);
+        if (this.#status.state !== 'receiving') this.#setStatus({ state: 'receiving', error: '' });
+        this.#onPacket(packet);
+      };
+      // El servidor del PC500 avisa cuando STREAM se apaga, sin cortar la conexión.
+      client.onStatusCallback = (code) => {
+        if (this.#pull !== client || code !== 'NetStream.Play.UnpublishNotify') return;
+        this.#relay.reset();
+        this.#setStatus({ state: 'waiting', info: null });
       };
       client.onCloseCallback = () => retry('Se cortó el video del PC500.');
       client.onErrorCallback = (error) => retry(`No se pudo leer el video: ${error.message}`);
       try {
         await client.connect(url);
+        if (tcUrl) client.baseUri = tcUrl;
         await client.sendConnect();
         await client.sendCreateStream();
         await client.sendPlay(client.urlInfo.streamName);
         client.startHeartbeat();
+        if (this.#pull === client && this.#status.state === 'connecting') this.#setStatus({ state: 'waiting', error: '' });
       } catch (error) {
         try {
           client.disconnect();

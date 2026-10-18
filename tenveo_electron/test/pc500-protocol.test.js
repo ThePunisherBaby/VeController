@@ -104,15 +104,17 @@ test('nombres de cámaras', () => {
 import {
   buttonLight,
   cmdButton,
-  cmdStreamTarget,
+  deviceStreamServer,
+  deviceVideoPlan,
   isIPv4,
   isPanelButton,
-  streamButtonForSlot,
+  isStreaming,
+  streamDestinations,
 } from '../src/core/pc500-protocol.js';
 
 test('guarda la luz de los botones del panel y los datos del equipo', () => {
   const state = applyDeviceUpdate(createSwitcherState(), {
-    stream_2: 'active-red',
+    stream: 'active-green',
     dsk: 'flash-green',
     logo1: 'none-white',
     sys_ip: '192.168.1.188',
@@ -120,11 +122,18 @@ test('guarda la luz de los botones del panel y los datos del equipo', () => {
     stream_time: '00:01:05',
     record_time: 12,
   });
-  assert.equal(state.buttons.stream_2, 'active-red');
-  assert.deepEqual(buttonLight(state.buttons.stream_2), { on: true, color: 'red', flash: false });
+  assert.equal(state.buttons.stream, 'active-green');
+  assert.deepEqual(buttonLight(state.buttons.stream), { on: true, color: 'green', flash: false });
   assert.deepEqual(buttonLight(state.buttons.dsk), { on: true, color: 'green', flash: true });
   assert.equal(buttonLight(state.buttons.logo1).on, false);
   assert.deepEqual(state.device, { ip: '192.168.1.188', version: 'V1.2.3', streamTime: '00:01:05', recordTime: '12' });
+});
+
+test('un {id: 1} que el equipo devuelve tal cual no enciende la luz', () => {
+  // El PC500 guarda los comandos que recibe y se los manda a quien se conecta.
+  assert.equal(buttonLight(1).on, false);
+  assert.equal(buttonLight(true).on, false);
+  assert.equal(buttonLight('none-green').on, false);
 });
 
 test('una IP mal formada del equipo se ignora', () => {
@@ -136,24 +145,79 @@ test('una IP mal formada del equipo se ignora', () => {
 
 test('los botones del panel se mandan como {id: 1} y solo los conocidos', () => {
   assert.deepEqual(cmdButton('pip1-on-air'), { 'pip1-on-air': 1 });
-  assert.deepEqual(cmdButton('stream_2'), { stream_2: 1 });
+  assert.deepEqual(cmdButton('stream'), { stream: 1 });
+  // STREAM 2 está siempre desactivado en el panel original.
+  assert.throws(() => cmdButton('stream_2'), RangeError);
   assert.throws(() => cmdButton('sys_ip'), RangeError);
   assert.equal(isPanelButton('rec'), true);
   assert.equal(isPanelButton('pvw-1'), false);
-  assert.equal(streamButtonForSlot(1), 'stream');
-  assert.equal(streamButtonForSlot(2), 'stream_2');
-  assert.throws(() => streamButtonForSlot(3), RangeError);
 });
 
-test('arma el destino de transmisión conservando fps y tasa de bits', () => {
-  assert.deepEqual(cmdStreamTarget(2, 'rtmp://192.168.1.20:1935/live', 'tenveo_1', { stream_fps_index: 1, stream_bitrate: 4000 }), {
-    'stream-2-server': 'rtmp://192.168.1.20:1935/live',
-    'stream-2-key': 'tenveo_1',
-    stream_fps_index: 1,
-    stream_bitrate: 4000,
+// Estado como lo manda el PC500 real: los dos destinos en su servidor interno.
+function deviceWith(update) {
+  return applyDeviceUpdate(createSwitcherState(), {
+    sys_ip: '192.168.0.177',
+    stream: 'none-green',
+    stream_time: '00:00:00',
+    'stream-1-server': 'rtmp://192.168.0.177:1935/live/',
+    'stream-1-key': 'live1',
+    'stream-2-server': 'rtmp://192.168.0.177:1935/live/',
+    'stream-2-key': 'live2',
+    ...update,
   });
-  assert.deepEqual(cmdStreamTarget(1, 'rtmp://a/live', 'k'), { 'stream-1-server': 'rtmp://a/live', 'stream-1-key': 'k' });
-  assert.throws(() => cmdStreamTarget(2, 'http://x', 'k'), /Servidor RTMP no válido/);
-  assert.throws(() => cmdStreamTarget(2, 'rtmp://x/live', 'con espacio'), /Clave de transmisión no válida/);
-  assert.throws(() => cmdStreamTarget(5, 'rtmp://x/live', 'k'), RangeError);
+}
+
+test('reconoce el servidor RTMP interno del equipo', () => {
+  assert.equal(deviceStreamServer('rtmp://192.168.0.177:1935/live/', '192.168.0.177'), true);
+  assert.equal(deviceStreamServer('rtmp://192.168.0.177/live', '192.168.0.177'), true);
+  assert.equal(deviceStreamServer('rtmp://127.0.0.1:1935/live/', ''), true);
+  assert.equal(deviceStreamServer('rtmp://a.rtmp.youtube.com/live2', '192.168.0.177'), false);
+  assert.equal(deviceStreamServer('rtmp://192.168.0.177:1936/live/', '192.168.0.177'), false);
+  assert.equal(deviceStreamServer('rtmp://192.168.0.50:1935/live/', '192.168.0.177'), false);
+  assert.equal(deviceStreamServer('', '192.168.0.177'), false);
+});
+
+test('lee los destinos de STREAM y si está transmitiendo', () => {
+  const state = deviceWith({});
+  assert.deepEqual(streamDestinations(state), [
+    { slot: 1, server: 'rtmp://192.168.0.177:1935/live/', key: 'live1' },
+    { slot: 2, server: 'rtmp://192.168.0.177:1935/live/', key: 'live2' },
+  ]);
+  assert.equal(isStreaming(state), false);
+  assert.equal(isStreaming(deviceWith({ stream: 'active-green' })), true);
+  // Aunque la luz no haya llegado, el contador corriendo dice que transmite.
+  assert.equal(isStreaming(deviceWith({ stream: 1, stream_time: '00:00:07' })), true);
+});
+
+test('con los dos destinos en el equipo se puede encender y apagar STREAM', () => {
+  const plan = deviceVideoPlan(deviceWith({}));
+  // Se lee el destino 2: el 1 queda para la plataforma del usuario.
+  assert.equal(plan.key, 'live2');
+  assert.equal(plan.slot, 2);
+  assert.equal(plan.canStart, true);
+  assert.equal(plan.canStop, false);
+  const live = deviceVideoPlan(deviceWith({ stream: 'active-green' }));
+  assert.equal(live.canStart, false);
+  assert.equal(live.canStop, true);
+});
+
+test('nunca enciende ni apaga STREAM si un destino sale a internet', () => {
+  const youtube = { 'stream-1-server': 'rtmp://a.rtmp.youtube.com/live2', 'stream-1-key': 'abcd-1234' };
+  const off = deviceVideoPlan(deviceWith(youtube));
+  assert.equal(off.key, 'live2');
+  assert.equal(off.canStart, false);
+  assert.deepEqual(off.external, ['rtmp://a.rtmp.youtube.com/live2']);
+  const onAir = deviceVideoPlan(deviceWith({ ...youtube, stream: 'active-green' }));
+  assert.equal(onAir.canStop, false);
+  // Sin destino interno no hay nada que leer.
+  const none = deviceVideoPlan(deviceWith({ ...youtube, 'stream-2-server': 'rtmp://live.twitch.tv/app' }));
+  assert.equal(none.key, '');
+  assert.equal(none.canStart, false);
+});
+
+test('un destino hacia esta Mac cuenta como local', () => {
+  const toMac = { 'stream-1-server': 'rtmp://192.168.0.50:1935/live', 'stream-1-key': 'tenveo' };
+  assert.equal(deviceVideoPlan(deviceWith(toMac)).canStart, false);
+  const isLocal = (server) => server.startsWith('rtmp://192.168.0.50:1935/');
+  assert.equal(deviceVideoPlan(deviceWith(toMac), { isLocal }).canStart, true);
 });

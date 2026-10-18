@@ -7,7 +7,9 @@ import { getChannel, isCamera, isIPv4, isPanelButton } from './pc500-protocol.js
 import { CONNECTION_MODES, isValidHost } from './tenveo-service.js';
 
 // off: sin video; push: el PC500 transmite a esta Mac; pull: la Mac lee el
-// servidor RTMP del PC500; usb: la salida USB (UVC) del equipo.
+// servidor RTMP del PC500; usb: la salida USB (UVC) del equipo. pull es la
+// opción por defecto: no cambia nada en el equipo y muestra el video en cuanto
+// STREAM está encendido.
 export const VIDEO_SOURCES = Object.freeze(['off', 'push', 'pull', 'usb']);
 
 export const DEFAULT_SETTINGS = Object.freeze({
@@ -17,7 +19,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   obsHost: '127.0.0.1',
   obsPort: 4455,
   syncWithObs: true,
-  videoSource: 'off',
+  videoSource: 'pull',
   videoDeviceId: '',
   videoKey: '',
   rtmpPort: 1935,

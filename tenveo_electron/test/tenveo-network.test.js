@@ -150,7 +150,7 @@ test('los modos de conexión eligen la ruta', async (t) => {
   assert.throws(() => service.setMode('wifi'), RangeError);
 });
 
-test('los botones del panel y el destino de transmisión llegan al equipo', async (t) => {
+test('los botones del panel llegan al equipo y vuelve su luz', async (t) => {
   const mock = await startMockPc500();
   const service = new TenveoService({ usbUrl: `ws://127.0.0.1:${mock.port}` });
   t.after(async () => {
@@ -161,19 +161,15 @@ test('los botones del panel y el destino de transmisión llegan al equipo', asyn
   await waitFor(service, (s) => s.connection === 'usb' && s.device.ip === '192.168.1.188');
   assert.equal(service.state.device.version, 'SIMULADOR PC500');
 
-  service.pressButton('stream_2');
-  await waitFor(service, () => service.isButtonOn('stream_2'));
+  // Como el equipo real: STREAM verde y el contador corriendo.
+  service.pressButton('stream');
+  await waitFor(service, () => service.isButtonOn('stream') && service.state.device.streamTime !== '00:00:00');
+  assert.equal(service.state.buttons.stream, 'active-green');
   service.pressButton('dsk');
   await waitFor(service, () => service.isButtonOn('dsk'));
-
-  service.setStreamTarget(2, 'rtmp://192.168.1.20:1935/live', 'tenveo1');
-  await until(() => mock.state.streams['2-key'] === 'tenveo1');
-  assert.deepEqual(mock.received.at(-1), {
-    'stream-2-server': 'rtmp://192.168.1.20:1935/live',
-    'stream-2-key': 'tenveo1',
-    stream_fps_index: 1,
-    stream_bitrate: 4000,
-  });
+  service.pressButton('stream');
+  await waitFor(service, () => !service.isButtonOn('stream') && service.state.device.streamTime === '00:00:00');
+  assert.equal(service.state.raw['stream-2-key'], 'live2');
 });
 
 test('un cambio de modo en el instante en que conecta no deja la conexión muerta', async (t) => {

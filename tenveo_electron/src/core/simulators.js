@@ -35,7 +35,8 @@ export function createPc500Simulator({ autoDelayMs = 600, ip = '192.168.1.188' }
     on: { pgm: 1, mic1: 1, mic2: 0 },
     mode: { in1: 1, in2: 1, in3: 2, in4: 0, in5: 0 },
     buttons: {},
-    streams: {},
+    // Como el equipo de fábrica: los dos destinos van a su servidor interno.
+    streams: { '1-server': `rtmp://${ip}:1935/live/`, '1-key': 'live1', '2-server': `rtmp://${ip}:1935/live/`, '2-key': 'live2' },
   };
   const received = [];
   const sessions = new Set();
@@ -47,12 +48,17 @@ export function createPc500Simulator({ autoDelayMs = 600, ip = '192.168.1.188' }
     auto: state.auto ? 'active-white' : 'none-white',
     ftb: state.ftb ? 'active-red' : 'none-red',
   });
-  const buttonClass = (id) => (state.buttons[id] ? (id === 'stream' || id === 'stream_2' || id === 'rec' ? 'active-red' : 'active-green') : 'none-white');
+  const buttonClass = (id) => {
+    if (id === 'stream') return state.buttons.stream ? 'active-green' : 'none-green';
+    return state.buttons[id] ? (id === 'rec' ? 'active-red' : 'active-green') : 'none-white';
+  };
   const fullState = () => ({
     system_version: 'SIMULADOR PC500',
     sys_ip: ip,
     stream_fps_index: 1,
     stream_bitrate: 4000,
+    stream_time: state.buttons.stream ? '00:00:01' : '00:00:00',
+    ...Object.fromEntries(Object.entries(state.streams).map(([slotField, value]) => [`stream-${slotField}`, value])),
     ...Object.fromEntries([...PANEL_BUTTON_IDS].map((id) => [id, buttonClass(id)])),
     ...busState(),
     ...flags(),
@@ -74,7 +80,9 @@ export function createPc500Simulator({ autoDelayMs = 600, ip = '192.168.1.188' }
   function handle(key, value) {
     if (PANEL_BUTTON_IDS.has(key) && value === 1) {
       state.buttons[key] = !state.buttons[key];
-      broadcast({ [key]: buttonClass(key) });
+      const update = { [key]: buttonClass(key) };
+      if (key === 'stream') update.stream_time = state.buttons.stream ? '00:00:01' : '00:00:00';
+      broadcast(update);
       return;
     }
     const stream = /^stream-([12])-(server|key)$/.exec(key);

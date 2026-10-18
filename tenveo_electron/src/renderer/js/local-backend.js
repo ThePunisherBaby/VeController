@@ -36,6 +36,8 @@ export function createLocalBackend() {
   const params = new URLSearchParams(location.search);
   const demo = params.has('demo');
   const settings = demo ? {} : readSettings();
+  // El video por red lo recibe el proceso principal de la app de escritorio.
+  if (settings.videoSource !== 'usb') settings.videoSource = 'off';
 
   const tenveoOptions = {};
   const obsOptions = {};

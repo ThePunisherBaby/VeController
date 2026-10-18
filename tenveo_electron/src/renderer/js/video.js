@@ -141,7 +141,9 @@ export function createPgmVideo({ video, placeholder, hint, badge, backend, onCam
     if (settings.videoSource === 'usb') {
       return { key: `usb|${settings.videoDeviceId}`, start: () => startUsb(settings.videoDeviceId) };
     }
-    const message = network ? 'Esperando el video del PC500…' : 'Sin video. Elige una fuente en Equipo.';
+    const dv = extras?.deviceVideo;
+    let message = 'Sin video. Elige una fuente en Equipo.';
+    if (network) message = dv?.connected && !dv.streaming ? 'STREAM apagado · enciéndelo en Equipo' : 'Esperando el video del PC500…';
     return { key: `off|${message}`, start: () => hide(message) };
   }
 

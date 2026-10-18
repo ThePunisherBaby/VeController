@@ -120,8 +120,8 @@ test('solo acepta comandos y valores conocidos', () => {
   assert.throws(() => controller.dispatch('setVideoSource', 'ndi'), /Fuente de video desconocida/);
   controller.dispatch('switchLive', 'aux');
   controller.dispatch('toggleMute', 'mic1');
-  controller.dispatch('pressButton', 'stream_2');
-  assert.deepEqual(tenveo.calls.slice(-3), [['switchLive', 'aux'], ['toggleMute', 'mic1'], ['pressButton', 'stream_2']]);
+  controller.dispatch('pressButton', 'stream');
+  assert.deepEqual(tenveo.calls.slice(-3), [['switchLive', 'aux'], ['toggleMute', 'mic1'], ['pressButton', 'stream']]);
 });
 
 test('crea y guarda una clave de video desde el primer arranque', () => {

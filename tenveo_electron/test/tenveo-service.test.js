@@ -114,3 +114,26 @@ test('sin conexión, los comandos devuelven false', () => {
   assert.equal(service.setVolume('in1', -10), false);
   assert.equal(service.state.volumes.in1, -10);
 });
+
+test('reintenta cada vez más espaciado, hasta un tope', async (t) => {
+  // Un WebSocket que nunca conecta: anota cuándo se intentó.
+  const attempts = [];
+  class Refused {
+    readyState = 0;
+    constructor() {
+      attempts.push(performance.now());
+      setTimeout(() => this.onclose?.(), 0);
+    }
+    close() {}
+  }
+  const service = new TenveoService({ usbUrl: 'ws://127.0.0.1:9', mode: 'usb', WebSocketImpl: Refused, firstRetryMs: 20, retryMs: 160 });
+  t.after(() => service.stop());
+  service.start();
+  await until(() => attempts.length >= 7, 3000);
+  service.stop();
+  const gaps = attempts.slice(1, 7).map((at, i) => at - attempts[i]);
+  // 20, 40, 80, 160, 160, 160 ms (con margen para el temporizador).
+  assert.ok(gaps[0] < 60, `primer reintento rápido: ${gaps[0]}`);
+  for (let i = 1; i < gaps.length; i += 1) assert.ok(gaps[i] >= gaps[i - 1] - 5, `espaciado creciente: ${gaps.join(', ')}`);
+  assert.ok(gaps.at(-1) >= 150 && gaps.at(-1) < 300, `tope en retryMs: ${gaps.at(-1)}`);
+});

@@ -5,8 +5,9 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
+import AMF from '../src/main/vendor/node-media-server/protocol/amf.js';
 import RtmpClient from '../src/main/vendor/node-media-server/protocol/rtmp_client.js';
-import { FlvRelay, VideoReceiver } from '../src/main/video-receiver.js';
+import { FlvRelay, VideoReceiver, videoInfoFromPacket } from '../src/main/video-receiver.js';
 import { sleep, until } from './helpers.js';
 
 const require = createRequire(import.meta.url);
@@ -17,6 +18,9 @@ const KEYFRAME = [0x17, 0x01, 0, 0, 0, 0, 0, 0, 5, 0x65, 0x88, 0x84, 0x00, 0x33]
 const INTERFRAME = [0x27, 0x01, 0, 0, 0, 0, 0, 0, 4, 0x41, 0x9a, 0x22, 0x11];
 const AUDIO_HEADER = [0xaf, 0x00, 0x12, 0x10];
 const AUDIO_FRAME = [0xaf, 0x01, 0x21, 0x10, 0x04];
+// Metadatos como los del PC500 real (SRS): 1080p a 60 cuadros con audio AAC.
+const META = [...AMF.amf0Encode(['onMetaData', { width: 1920, height: 1080, framerate: 60, videocodecid: 7, audiocodecid: 10 }])];
+const ON_STATUS = [...AMF.amf0Encode(['onStatus', { code: 'NetStream.Data.Start' }])];
 
 function packet(codecType, dts, bytes, flags = 0) {
   const data = Buffer.from(bytes);
@@ -95,7 +99,7 @@ function freePort() {
 
 test('el relevo FLV entrega cabeceras y el último GOP a quien llega tarde', () => {
   const relay = new FlvRelay();
-  relay.push(packet(18, 0, [2, 0, 0], 5));
+  relay.push(packet(18, 0, META, 5));
   relay.push(packet(9, 0, VIDEO_HEADER, 2));
   relay.push(packet(8, 0, AUDIO_HEADER, 0));
   relay.push(packet(9, 0, KEYFRAME, 3));
@@ -114,10 +118,21 @@ test('el relevo FLV entrega cabeceras y el último GOP a quien llega tarde', () 
 
   relay.push(packet(9, 100, INTERFRAME, 4));
   assert.equal(received.length, 7);
+  // Otros mensajes de datos se reparten, pero no reemplazan a los metadatos.
+  relay.push(packet(18, 110, ON_STATUS, 5));
+  const late = [];
+  relay.subscribe({ write: (tag) => late.push(tag), end: () => {} });
+  assert.deepEqual([...late[1].subarray(11, 11 + META.length)], META);
   relay.reset();
   assert.equal(ended, true);
   assert.equal(relay.hasVideo, false);
   assert.equal(relay.subscriberCount, 0);
+});
+
+test('lee resolución y cuadros por segundo de los metadatos', () => {
+  assert.deepEqual(videoInfoFromPacket(packet(18, 0, META, 5)), { width: 1920, height: 1080, fps: 60, audio: true });
+  assert.equal(videoInfoFromPacket(packet(18, 0, ON_STATUS, 5)), null);
+  assert.equal(videoInfoFromPacket(packet(9, 0, KEYFRAME, 3)), null);
 });
 
 test('modo push: recibe el RTMP del PC500 y lo entrega como FLV', async (t) => {
@@ -214,6 +229,65 @@ test('modo pull: lee el servidor RTMP del equipo', async (t) => {
   const video = tags.filter((tag) => tag.type === 9).map((tag) => tag.data);
   assert.deepEqual(video[0], VIDEO_HEADER);
   assert.deepEqual(video[1], KEYFRAME);
+});
+
+test('modo pull: espera con STREAM apagado, detecta el corte y vuelve solo', async (t) => {
+  const NodeMediaServer = require('node-media-server');
+  const nmsLogger = require('node-media-server/src/core/logger.js');
+  const port = await freePort();
+  const storeDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tenveo-nms-'));
+  const nms = new NodeMediaServer({
+    bind: '127.0.0.1',
+    rtmp: { port },
+    record: { auto: false },
+    store: { path: storeDir },
+    webadmin: { enable: false },
+  });
+  nmsLogger.level = 'error';
+  await nms.run();
+  const receiver = new VideoReceiver({ stallMs: 800 });
+  const timers = new Set();
+  t.after(async () => {
+    for (const timer of timers) clearInterval(timer);
+    await receiver.close();
+    await nms.stop();
+    await fs.rm(storeDir, { recursive: true, force: true });
+  });
+
+  // Como el PC500: su servidor acepta al lector aunque STREAM esté apagado.
+  await receiver.configure({ mode: 'pull', url: `rtmp://127.0.0.1:${port}/live/live2` });
+  await until(() => receiver.status.state === 'waiting', 5000);
+
+  const startStream = async () => {
+    const source = await publish(`rtmp://127.0.0.1:${port}/live/live2`, []);
+    source.sendMetaData({ width: 1920, height: 1080, framerate: 60 });
+    for (const p of STREAM) source.sendPacket(p);
+    let dts = 66;
+    const timer = setInterval(() => {
+      dts += 33;
+      source.sendPacket(packet(9, dts, INTERFRAME));
+    }, 50);
+    timers.add(timer);
+    return () => {
+      clearInterval(timer);
+      source.disconnect();
+    };
+  };
+
+  let stopStream = await startStream();
+  await until(() => receiver.status.state === 'receiving' && receiver.relay.hasVideo, 5000);
+  await until(() => receiver.status.info?.width === 1920, 5000);
+  assert.equal(receiver.status.info.fps, 60);
+
+  // STREAM apagado: la conexión sigue, pero sin paquetes es "esperando".
+  stopStream();
+  await until(() => receiver.status.state === 'waiting', 6000);
+  assert.equal(receiver.relay.hasVideo, false);
+  assert.equal(receiver.status.info, null);
+
+  stopStream = await startStream();
+  await until(() => receiver.status.state === 'receiving' && receiver.relay.hasVideo, 8000);
+  stopStream();
 });
 
 test('apagar el receptor cierra los puertos', async () => {

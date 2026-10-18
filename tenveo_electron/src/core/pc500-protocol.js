@@ -53,8 +53,9 @@ export const PANEL_BUTTONS = Object.freeze([
   Object.freeze({ id: 'logo2', label: 'LOGO 2', group: 'keyer' }),
   Object.freeze({ id: 'left', label: '◀', group: 'keyer' }),
   Object.freeze({ id: 'right', label: '▶', group: 'keyer' }),
-  Object.freeze({ id: 'stream', label: 'STREAM 1', group: 'device' }),
-  Object.freeze({ id: 'stream_2', label: 'STREAM 2', group: 'device' }),
+  // El panel original tiene STREAM 2 siempre desactivado: con STREAM el equipo
+  // transmite a sus dos destinos a la vez.
+  Object.freeze({ id: 'stream', label: 'STREAM', group: 'device' }),
   Object.freeze({ id: 'rec', label: 'REC', group: 'device' }),
   Object.freeze({ id: 'still', label: 'FREEZE', group: 'device' }),
   Object.freeze({ id: 'shot', label: 'SHOT', group: 'device' }),
@@ -64,11 +65,6 @@ export const PANEL_BUTTONS = Object.freeze([
   Object.freeze({ id: 'user1', label: 'USER 1', group: 'device' }),
   Object.freeze({ id: 'user2', label: 'USER 2', group: 'device' }),
 ]);
-
-// Canal de transmisión del PC500 que la app usa para mandar video a la Mac.
-// El canal 1 queda libre para YouTube u otra plataforma.
-export const VIDEO_STREAM_SLOT = 2;
-const STREAM_BUTTON_BY_SLOT = Object.freeze({ 1: 'stream', 2: 'stream_2' });
 
 const CAMERA_IDS = new Set(CAMERAS.map((c) => c.id));
 const CHANNELS_BY_ID = new Map(AUDIO_CHANNELS.map((c) => [c.id, c]));
@@ -83,15 +79,55 @@ export function isIPv4(value) {
   return typeof value === 'string' && IPV4.test(value);
 }
 
-export function streamButtonForSlot(slot) {
-  const id = STREAM_BUTTON_BY_SLOT[slot];
-  if (!id) throw new RangeError(`Canal de transmisión desconocido: ${slot}`);
-  return id;
+// true si el servidor de un STREAM es el RTMP interno del propio PC500 (la
+// opción "por defecto" del panel, rtmp://<IP del equipo>:1935/live/).
+// Transmitir ahí no sale a internet: solo deja el video listo para leerlo.
+export function deviceStreamServer(server, deviceIp) {
+  const match = /^rtmp:\/\/([^/:]+)(?::(\d+))?\/live\/?$/i.exec(String(server ?? '').trim());
+  if (!match) return false;
+  const [, host, port] = match;
+  if (port && port !== '1935') return false;
+  return (Boolean(deviceIp) && host === deviceIp) || host === '127.0.0.1' || host === 'localhost';
 }
 
-// Luz de un botón a partir de la clase CSS que manda el equipo.
+// Los dos destinos de STREAM tal como los tiene guardados el equipo.
+export function streamDestinations(state) {
+  return [1, 2].map((slot) => ({
+    slot,
+    server: String(state.raw?.[`stream-${slot}-server`] ?? '').trim(),
+    key: String(state.raw?.[`stream-${slot}-key`] ?? '').trim(),
+  }));
+}
+
+export function isStreaming(state) {
+  const time = state.device?.streamTime;
+  return buttonLight(state.buttons?.stream).on || Boolean(time && time !== '00:00:00');
+}
+
+// Qué destino de STREAM se puede leer desde la Mac y si se puede encender
+// STREAM sin salir al aire. Con STREAM el equipo transmite a sus dos destinos,
+// así que solo se enciende si ninguno es una plataforma externa. isLocal dice
+// si un servidor es local además del interno (por ejemplo, el de esta Mac).
+export function deviceVideoPlan(state, { isLocal = () => false } = {}) {
+  const ip = state.device?.ip;
+  const destinations = streamDestinations(state).filter((d) => d.server);
+  const internal = [...destinations].reverse().find((d) => d.key && deviceStreamServer(d.server, ip));
+  const external = destinations.filter((d) => !deviceStreamServer(d.server, ip) && !isLocal(d.server, d.key));
+  const streaming = isStreaming(state);
+  return {
+    key: internal?.key ?? '',
+    slot: internal?.slot ?? 0,
+    streaming,
+    external: external.map((d) => d.server),
+    canStart: !streaming && destinations.length > 0 && external.length === 0,
+    canStop: streaming && external.length === 0,
+  };
+}
+
+// Luz de un botón a partir de la clase CSS que manda el equipo. Como en el
+// panel original, solo cuentan active-* y flash-*: el equipo también guarda los
+// {"<id>": 1} que recibe y los devuelve tal cual, y eso no es una luz.
 export function buttonLight(value) {
-  if (value === 1 || value === true) return { on: true, color: 'white', flash: false };
   if (typeof value !== 'string') return { on: false, color: null, flash: false };
   const match = /^(active|flash)-(\w+)/.exec(value);
   if (!match) return { on: false, color: null, flash: false };
@@ -270,16 +306,4 @@ export function cmdTbar(position) {
 export function cmdButton(id) {
   if (!isPanelButton(id)) throw new RangeError(`Botón desconocido: ${id}`);
   return { [id]: 1 };
-}
-
-// Destino de un canal de transmisión, igual que el botón "stream-N" de la
-// pestaña de sistema del panel. Conserva los fps y la tasa de bits actuales.
-export function cmdStreamTarget(slot, server, key, raw = {}) {
-  streamButtonForSlot(slot);
-  if (!/^rtmps?:\/\/[^\s]+$/.test(String(server))) throw new RangeError(`Servidor RTMP no válido: ${server}`);
-  if (!/^[A-Za-z0-9_-]{1,64}$/.test(String(key))) throw new RangeError(`Clave de transmisión no válida: ${key}`);
-  const command = { [`stream-${slot}-server`]: String(server), [`stream-${slot}-key`]: String(key) };
-  if (Number.isFinite(raw.stream_fps_index)) command.stream_fps_index = raw.stream_fps_index;
-  if (Number.isFinite(raw.stream_bitrate)) command.stream_bitrate = raw.stream_bitrate;
-  return command;
 }

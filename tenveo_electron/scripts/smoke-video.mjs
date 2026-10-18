@@ -3,7 +3,13 @@
 //   2. Un emisor de prueba publica por RTMP una carta de ajuste en H.264,
 //      igual que el PC500 cuando transmite.
 //   3. La app recibe el stream, lo reproduce en el monitor PGM y guarda una captura.
-// Uso: npm run smoke:video [-- ruta/de/la/captura.png]
+//
+// Con --pull prueba el modo por defecto, como con el equipo real: un servidor
+// RTMP hace de servidor interno del PC500, la app pulsa "Encender STREAM", el
+// emisor publica solo mientras STREAM está encendido y, al terminar, la app
+// apaga STREAM.
+//
+// Uso: npm run smoke:video [-- --pull] [-- ruta/de/la/captura.png]
 // Con TENVEO_SMOKE_APP se prueba una app empaquetada en vez del código fuente.
 
 import { spawn } from 'node:child_process';
@@ -11,13 +17,16 @@ import fs from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import electronPath from 'electron';
 import { startMockObs } from '../dev/mock-obs.js';
 import { startMockPc500 } from '../dev/mock-pc500.js';
 
 const projectDir = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
-const out = path.resolve(process.argv[2] || path.join(os.tmpdir(), `tenveo-video-${Date.now()}.png`));
+const pull = process.argv.includes('--pull');
+const outArg = process.argv.slice(2).find((arg) => !arg.startsWith('--'));
+const out = path.resolve(outArg || path.join(os.tmpdir(), `tenveo-video-${Date.now()}.png`));
 const userData = await fs.mkdtemp(path.join(os.tmpdir(), 'tenveo-video-data-'));
 
 function freePort() {
@@ -30,11 +39,30 @@ function freePort() {
   });
 }
 
-const pc500 = await startMockPc500();
+// En --pull el PC500 simulado está en 127.0.0.1: sus destinos de STREAM apuntan
+// a rtmp://127.0.0.1:1935/live/, que aquí es el servidor RTMP de prueba.
+const pc500 = await startMockPc500(pull ? { ip: '127.0.0.1' } : {});
 const obs = await startMockObs();
 const rtmpPort = await freePort();
-const key = 'prueba_video';
+const key = pull ? 'live2' : 'prueba_video';
 const { ELECTRON_RUN_AS_NODE, ...baseEnv } = process.env;
+
+let deviceServer = null;
+let storeDir = null;
+if (pull) {
+  const require = createRequire(import.meta.url);
+  const NodeMediaServer = require('node-media-server');
+  require('node-media-server/src/core/logger.js').level = 'error';
+  storeDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tenveo-video-srs-'));
+  deviceServer = new NodeMediaServer({
+    bind: '127.0.0.1',
+    rtmp: { port: rtmpPort },
+    record: { auto: false },
+    store: { path: storeDir },
+    webadmin: { enable: false },
+  });
+  await deviceServer.run();
+}
 
 const pipe = (child, tag) => {
   child.stdout.on('data', (chunk) => process.stdout.write(`${tag} ${chunk}`));
@@ -54,28 +82,56 @@ const appProcess = spawn(appCommand, packaged ? [] : [projectDir], {
     TENVEO_OBS_PORT: String(obs.port),
     TENVEO_DISABLE_ADB: '1',
     TENVEO_USER_DATA: userData,
-    TENVEO_VIDEO: 'push',
-    TENVEO_VIDEO_KEY: key,
-    TENVEO_RTMP_PORT: String(rtmpPort),
-    TENVEO_RTMP_HOST: '127.0.0.1',
+    ...(pull
+      ? {
+          TENVEO_VIDEO: 'pull',
+          TENVEO_DEVICE_RTMP_PORT: String(rtmpPort),
+          TENVEO_SMOKE_CLICKS: '[data-action="tab"][data-tab="device"]|[data-action="start-device-stream"]',
+          TENVEO_SMOKE_STOP_STREAM: '1',
+        }
+      : {
+          TENVEO_VIDEO: 'push',
+          TENVEO_VIDEO_KEY: key,
+          TENVEO_RTMP_PORT: String(rtmpPort),
+          TENVEO_RTMP_HOST: '127.0.0.1',
+          TENVEO_SMOKE_CLICKS: '[data-action="tab"][data-tab="device"]',
+        }),
     TENVEO_SMOKE_SHOT: out,
-    TENVEO_SMOKE_CLICKS: '[data-action="tab"][data-tab="device"]',
     TENVEO_SMOKE_WAIT_VIDEO: '1',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 pipe(appProcess, '[app]');
 
-const publisher = spawn(electronPath, [path.join(projectDir, 'dev', 'video-publisher.mjs')], {
-  env: { ...baseEnv, PUBLISH_URL: `rtmp://127.0.0.1:${rtmpPort}/live/${key}` },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
-pipe(publisher, '[emisor]');
+let publisher = null;
+const startPublisher = () => {
+  publisher = spawn(electronPath, [path.join(projectDir, 'dev', 'video-publisher.mjs')], {
+    env: { ...baseEnv, PUBLISH_URL: `rtmp://127.0.0.1:${rtmpPort}/live/${key}` },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  pipe(publisher, '[emisor]');
+};
+const stopPublisher = () => {
+  publisher?.kill();
+  publisher = null;
+};
+
+// En --pull el emisor sigue a STREAM, como el codificador del PC500.
+let streamPresses = 0;
+const followStream = pull
+  ? setInterval(() => {
+      streamPresses = pc500.received.filter((message) => message.stream === 1).length;
+      if (pc500.state.buttons.stream && !publisher) startPublisher();
+      if (!pc500.state.buttons.stream && publisher) stopPublisher();
+    }, 100)
+  : null;
+if (!pull) startPublisher();
 
 const timeout = setTimeout(() => appProcess.kill('SIGKILL'), 90000);
 const code = await new Promise((resolve) => appProcess.on('exit', (exitCode) => resolve(exitCode)));
 clearTimeout(timeout);
-publisher.kill();
+clearInterval(followStream);
+stopPublisher();
 
 let snapshot = null;
 try {
@@ -92,9 +148,17 @@ const checks = [
   ['la imagen es de 640 x 360', element?.width === 640 && element?.height === 360],
   ['el video avanza', Number(element?.time) > 0.3],
 ];
+if (pull) {
+  checks.push(
+    ['leyó el destino 2 del servidor interno', snapshot?.extras?.video?.source === `rtmp://127.0.0.1:${rtmpPort}/live/live2`],
+    ['la app encendió y apagó STREAM', streamPresses === 2],
+    ['STREAM quedó apagado', pc500.state.buttons.stream === false],
+  );
+}
 
-await Promise.allSettled([pc500.close(), obs.close()]);
+await Promise.allSettled([pc500.close(), obs.close(), deviceServer?.stop()]);
 await fs.rm(userData, { recursive: true, force: true });
+if (storeDir) await fs.rm(storeDir, { recursive: true, force: true });
 
 for (const [name, ok] of checks) console.log(`${ok ? '✔' : '✖'} ${name}`);
 const failed = checks.some(([, ok]) => !ok);
