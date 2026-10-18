@@ -3,25 +3,23 @@ import { test } from 'node:test';
 import WebSocket from 'ws';
 import { startMockPc500 } from '../dev/mock-pc500.js';
 import { TenveoService } from '../src/core/tenveo-service.js';
-import { until, waitFor } from './helpers.js';
+import { serviceFor, until, waitFor } from './helpers.js';
 
 test('mide la latencia con ping cuando la conexión lo permite', async (t) => {
   const mock = await startMockPc500();
-  const service = new TenveoService({ usbUrl: `ws://127.0.0.1:${mock.port}`, WebSocketImpl: WebSocket, heartbeatMs: 100 });
+  const service = serviceFor(mock, { WebSocketImpl: WebSocket, heartbeatMs: 100 });
   t.after(async () => {
     service.stop();
     await mock.close();
   });
   service.start();
-  const state = await waitFor(service, (s) => s.connection === 'usb' && typeof s.latencyMs === 'number');
+  const state = await waitFor(service, (s) => s.connection === 'ethernet' && typeof s.latencyMs === 'number');
   assert.ok(state.latencyMs >= 0 && state.latencyMs < 1000);
 });
 
 test('detecta una conexión muerta y reconecta sola', async (t) => {
   const mock = await startMockPc500();
-  const service = new TenveoService({
-    usbUrl: `ws://127.0.0.1:${mock.port}`,
-    WebSocketImpl: WebSocket,
+  const service = serviceFor(mock, { WebSocketImpl: WebSocket,
     heartbeatMs: 100,
     heartbeatTimeoutMs: 400,
   });
@@ -34,15 +32,15 @@ test('detecta una conexión muerta y reconecta sola', async (t) => {
     await mock.close();
   });
   service.start();
-  await waitFor(service, (s) => s.connection === 'usb' && typeof s.latencyMs === 'number');
+  await waitFor(service, (s) => s.connection === 'ethernet' && typeof s.latencyMs === 'number');
 
   // El simulador deja de leer: como un cable desenchufado sin aviso.
   const [frozen] = mock.clients();
   frozen._socket.pause();
-  await waitFor(service, (s) => s.connection !== 'usb', 3000);
+  await waitFor(service, (s) => s.connection !== 'ethernet', 3000);
   assert.ok(errors.some((e) => /dejó de responder/.test(e)));
 
-  await waitFor(service, (s) => s.connection === 'usb', 3000);
+  await waitFor(service, (s) => s.connection === 'ethernet', 3000);
   assert.equal(mock.clients().length >= 2, true);
 });
 
@@ -52,9 +50,7 @@ test('un servidor que no contesta pings no pierde la conexión', async (t) => {
   class NoPongWebSocket extends WebSocket {
     ping() {}
   }
-  const service = new TenveoService({
-    usbUrl: `ws://127.0.0.1:${mock.port}`,
-    WebSocketImpl: NoPongWebSocket,
+  const service = serviceFor(mock, { WebSocketImpl: NoPongWebSocket,
     heartbeatMs: 50,
     heartbeatTimeoutMs: 150,
   });
@@ -63,9 +59,9 @@ test('un servidor que no contesta pings no pierde la conexión', async (t) => {
     await mock.close();
   });
   service.start();
-  await waitFor(service, (s) => s.connection === 'usb');
+  await waitFor(service, (s) => s.connection === 'ethernet');
   await new Promise((resolve) => setTimeout(resolve, 600));
-  assert.equal(service.state.connection, 'usb');
+  assert.equal(service.state.connection, 'ethernet');
   assert.equal(service.state.latencyMs, null);
 });
 
@@ -95,10 +91,11 @@ class SlowNetworkSocket {
 }
 
 test('con la red saturada manda solo el último valor y respeta el orden', async (t) => {
-  const service = new TenveoService({ usbUrl: 'ws://lento:8089', WebSocketImpl: SlowNetworkSocket, flushMs: 10 });
+  const service = new TenveoService({ WebSocketImpl: SlowNetworkSocket, flushMs: 10 });
+  service.setEthernetIp('lento');
   t.after(() => service.stop());
   service.start();
-  await waitFor(service, (s) => s.connection === 'usb');
+  await waitFor(service, (s) => s.connection === 'ethernet');
   const socket = SlowNetworkSocket.last;
 
   socket.bufferedAmount = 100_000;
@@ -122,14 +119,9 @@ test('con la red saturada manda solo el último valor y respeta el orden', async
   assert.deepEqual(socket.sent.slice(2), [{ audio_in1_vol: -20 }, { audio_pgm_vol: -3 }]);
 });
 
-test('los modos de conexión eligen la ruta', async (t) => {
+test('sin IP avisa y conecta en cuanto se la dan', async (t) => {
   const mock = await startMockPc500();
-  const service = new TenveoService({
-    usbUrl: `ws://127.0.0.1:${mock.port}`,
-    ethernetPort: mock.port,
-    mode: 'network',
-    retryMs: 100,
-  });
+  const service = new TenveoService({ ethernetPort: mock.port, retryMs: 100 });
   t.after(async () => {
     service.stop();
     await mock.close();
@@ -138,27 +130,22 @@ test('los modos de conexión eligen la ruta', async (t) => {
   service.start();
   const waiting = await waitFor(service, (s) => s.lastError !== null);
   assert.match(waiting.lastError, /IP del PC500/);
-  assert.equal(service.state.connection === 'usb', false);
-
-  service.setMode('auto');
-  await waitFor(service, (s) => s.connection === 'usb');
+  assert.equal(service.isConnected, false);
 
   service.setEthernetIp('127.0.0.1');
-  service.setMode('network');
   const lan = await waitFor(service, (s) => s.connection === 'ethernet');
-  assert.equal(lan.endpoint, `Ethernet LAN (127.0.0.1:${mock.port})`);
-  assert.throws(() => service.setMode('wifi'), RangeError);
+  assert.equal(lan.endpoint, `Red (127.0.0.1:${mock.port})`);
 });
 
 test('los botones del panel llegan al equipo y vuelve su luz', async (t) => {
   const mock = await startMockPc500();
-  const service = new TenveoService({ usbUrl: `ws://127.0.0.1:${mock.port}` });
+  const service = serviceFor(mock);
   t.after(async () => {
     service.stop();
     await mock.close();
   });
   service.start();
-  await waitFor(service, (s) => s.connection === 'usb' && s.device.ip === '192.168.1.188');
+  await waitFor(service, (s) => s.connection === 'ethernet' && s.device.ip === '192.168.1.188');
   assert.equal(service.state.device.version, 'SIMULADOR PC500');
 
   // Como el equipo real: STREAM verde y el contador corriendo.
@@ -172,23 +159,23 @@ test('los botones del panel llegan al equipo y vuelve su luz', async (t) => {
   assert.equal(service.state.raw['stream-2-key'], 'live2');
 });
 
-test('un cambio de modo en el instante en que conecta no deja la conexión muerta', async (t) => {
+test('un cambio de IP en el instante en que conecta termina en la IP nueva', async (t) => {
   const mock = await startMockPc500();
   // Reintento largo: si el pedido se perdiera, la prueba se quedaría sin conexión.
-  const service = new TenveoService({ usbUrl: `ws://127.0.0.1:${mock.port}`, ethernetPort: mock.port, retryMs: 60000 });
+  const service = new TenveoService({ ethernetPort: mock.port, retryMs: 60000 });
   t.after(async () => {
     service.stop();
     await mock.close();
   });
-  service.setEthernetIp('127.0.0.1');
+  service.setEthernetIp('localhost');
   let switched = false;
   service.onChange((s) => {
-    if (s.connection === 'usb' && !switched) {
+    if (s.connection === 'connecting' && !switched) {
       switched = true;
-      service.setMode('network');
+      service.setEthernetIp('127.0.0.1');
     }
   });
   service.start();
-  const state = await waitFor(service, (s) => s.connection === 'ethernet', 2000);
-  assert.equal(state.endpoint, `Ethernet LAN (127.0.0.1:${mock.port})`);
+  const state = await waitFor(service, (s) => s.connection === 'ethernet' && s.endpoint.includes('127.0.0.1'), 2000);
+  assert.equal(state.endpoint, `Red (127.0.0.1:${mock.port})`);
 });

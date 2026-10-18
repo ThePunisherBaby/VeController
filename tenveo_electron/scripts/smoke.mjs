@@ -38,7 +38,8 @@ const { ELECTRON_RUN_AS_NODE, ...baseEnv } = process.env;
 const child = spawn(command, args, {
   env: {
     ...baseEnv,
-    TENVEO_USB_URL: `ws://127.0.0.1:${pc500.port}`,
+    TENVEO_ETHERNET_IP: '127.0.0.1',
+    TENVEO_PC500_PORT: String(pc500.port),
     TENVEO_OBS_HOST: '127.0.0.1',
     TENVEO_OBS_PORT: String(obs.port),
     TENVEO_OBS_PASSWORD: 'mock',
@@ -65,7 +66,7 @@ try {
 
 const checks = [
   ['la app terminó sin errores', code === 0],
-  ['quedó conectada al PC500 simulado', snapshot?.switcher.connection === 'usb'],
+  ['quedó conectada al PC500 simulado', snapshot?.switcher.connection === 'ethernet'],
   ['quedó conectada a OBS con contraseña', snapshot?.obs.status === 'connected'],
   ['el PC500 recibió PVW 3', pc500.received.some((m) => m['pvw-3'] === 1)],
   ['el PC500 recibió CUT', pc500.received.some((m) => m.cut === 1)],

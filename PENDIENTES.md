@@ -4,7 +4,9 @@ Este documento detalla el estado actual del proyecto, las funciones implementada
 
 > **17 de octubre de 2026:** la consola pasó de Flutter a **Electron** (`tenveo_electron/`), y la versión **1.1.0** sumó comunicación por red optimizada, control de todos los botones del panel, video en vivo en el monitor PGM y una interfaz nueva. La app de Flutter (`tenveo_app/`) queda como legado.
 >
-> **18 de octubre de 2026 (1.2.0):** probada con un **PC500 real** por cable directo: conexión por IPv6 de enlace local, lectura de estado, Preview, STREAM y video 1080p60 en el monitor PGM por adb en red. Lo marcado como "probado con simulador" todavía falta confirmarlo con el equipo.
+> **18 de octubre de 2026 (1.2.0):** probada con un **PC500 real** por cable directo: conexión por IPv6 de enlace local, lectura de estado, Preview, STREAM y video 1080p60 en el monitor PGM por adb en red.
+>
+> **18 de octubre de 2026 (1.3.0):** **todo por red** (sin USB ni modos), Electron 43 para recuperar la GPU en esta Mac y un monitor PGM nuevo con WebCodecs. Con el PC500 real: de 36 % de cuadros perdidos a 0 %, ventana fluida a 60 cuadros/s y CPU de 149 % a 41 %. Lo marcado como "probado con simulador" todavía falta confirmarlo con el equipo.
 
 ---
 
@@ -15,14 +17,15 @@ Este documento detalla el estado actual del proyecto, las funciones implementada
 - [x] **Sincronización bidireccional:** Cambios reflejados en LEDs físicos y en la interfaz en tiempo real.
 - [x] **Migración a Electron:** Consola completa en [`tenveo_electron/`](tenveo_electron/).
 - [x] **Interfaz minimalista (1.1.0):** Monitores 16:9, consola con capas, barra lateral con pestañas de Audio, OBS y Equipo.
-- [x] **Comunicación por red optimizada:** Modos automático, solo USB y solo red; latido cada segundo con latencia visible; corte detectado en 3,5 s; reintentos de 250 ms a 2 s; búsqueda del PC500 en la red local (IPv4 e IPv6); IP aprendida por USB. **Probado con el PC500 real** por cable directo, con mediciones contra la 1.0.0 (DOCUMENTACION.md, sección 8).
-- [x] **Cable directo PC500 ↔ Mac (1.2.0):** control por IPv6 de enlace local y video por adb en red, sin configurar la red de la Mac. **Probado con el PC500 real.**
+- [x] **Comunicación por red optimizada:** una sola ruta por red; búsqueda automática del PC500 (IPv4 e IPv6); latido cada segundo con latencia visible; corte detectado en 3,5 s; reintentos de 250 ms a 2 s. **Probado con el PC500 real** por cable directo, con mediciones contra la 1.0.0 (DOCUMENTACION.md, sección 8).
+- [x] **Cable directo PC500 ↔ Mac:** control por IPv6 de enlace local y video por adb en red, sin configurar la red de la Mac. **Probado con el PC500 real.**
+- [x] **Fluidez (1.3.0):** GPU recuperada (Electron 43), monitor PGM en un worker con WebCodecs, interfaz que solo toca el DOM donde algo cambió, Preview marcado en el mismo cuadro del clic. Medido con `bench-video` (DOCUMENTACION.md, sección 8).
 - [x] **Control de todo el panel principal:** PIP, DSK, LOGO, CHROMA, LUMA, ON AIR, SET, STREAM, REC, FREEZE, SHOT, MODE, LOCK, MUTE y USER, con sus luces. STREAM probado con el PC500 real; el resto, con simulador. STREAM 2 se quitó: el firmware lo tiene desactivado.
-- [x] **Video en el monitor PGM:** Del servidor interno del PC500 (por defecto, **probado con el PC500 real**: 1080p60 con audio), del PC500 transmitiendo a la Mac, y por USB (UVC).
+- [x] **Video en el monitor PGM:** del servidor interno del PC500, **probado con el PC500 real** con cámaras: 1080p60, 0 cuadros perdidos. Se recupera solo si el decodificador falla.
 - [x] **Integración OBS Studio (v5):** Stream, Grabación, Cámara Virtual, escenas y sincronización automática, con contraseña.
 - [x] **Compilación sin Xcode:** App de Mac universal (Intel y Apple Silicon) en `.dmg` y `.zip` con `npm run dist`; versión web con modo demo.
-- [x] **Plug & Play sin scripts:** La app incluye `adb`, detecta el PC500 por USB, reenvía los puertos y los quita al salir.
-- [x] **Pruebas automáticas:** 98 pruebas del protocolo, la red, IPv6, OBS, la búsqueda, el video, el puente ADB, la configuración y la sintaxis, más pruebas de humo de la app, la versión web, el modo demo, el video y el modo por defecto con STREAM. Diagnóstico (`check-device`) y mediciones (`bench-network`) con el equipo real.
+- [x] **Plug & Play:** la app busca sola el PC500 en la red e incluye `adb` para el video por cable directo.
+- [x] **Pruebas automáticas:** 90 pruebas del protocolo, la red, IPv6, OBS, la búsqueda, el video, adb, la configuración y la sintaxis, más pruebas de humo de la app, la versión web, el modo demo y el video con STREAM. Diagnóstico (`check-device`) y mediciones (`bench-network`, `bench-video`) con el equipo real.
 
 ---
 
@@ -30,13 +33,10 @@ Este documento detalla el estado actual del proyecto, las funciones implementada
 
 ### 1. Video en Vivo en la Interfaz (Multiview Real)
 
-- [x] **Captura de video USB (UVC):** La salida PGM del PC500 se ve en el monitor de la app.
-- [x] **Video por red:** lectura del servidor RTMP interno del PC500 (SRS) o RTMP del PC500 hacia la Mac, sin recodificar.
-- [x] **Confirmado con el equipo:** el servidor interno responde en `rtmp://<IP>:1935/live/<clave>` (solo IPv4) y con STREAM el equipo publica sus dos destinos a la vez.
-- [ ] **Verlo con una cámara conectada:** en la prueba el PGM estaba en una entrada sin señal y el video llegó negro.
-- [ ] **Probar con el equipo** la ruta USB y el modo en que el PC500 transmite a la Mac.
+- [x] **Video por red:** lectura del servidor RTMP interno del PC500 (SRS), sin recodificar, con un monitor de baja latencia (WebCodecs).
+- [x] **Confirmado con el equipo:** el servidor interno responde en `rtmp://<IP>:1935/live/<clave>` (solo IPv4) y con STREAM el equipo publica sus dos destinos a la vez. Visto con cámaras: 1080p60 a 11,6 Mbit/s.
+- [ ] **Bajar la latencia del SRS del PC500:** manda el video a ráfagas cada ~350 ms. Con `min_latency on` (o `mw_latency 0`) en su configuración se ganarían unos 350 ms. Exige `adb shell` en el equipo, que el control de permisos de Claude Code bloqueó: falta que el usuario lo autorice, y hacerlo con copia de seguridad de la configuración y reiniciando solo el SRS.
 - [ ] **Multiview de las 4 cámaras:** El PC500 solo transmite el programa. Ver cada cámara exigiría otra fuente, por ejemplo NDI.
-- [ ] **Baja latencia:** RTMP queda entre medio segundo y un segundo y medio detrás. Bajar de 100 ms requiere otra vía, como NDI o la salida USB.
 
 ---
 
@@ -91,7 +91,7 @@ El análisis del firmware original (`index.js` y `pc.html`) reveló comandos adi
 ### 5. Empaque, Distribución y Experiencia de Usuario en macOS
 - [x] **ADB embebido (sin dependencia de terminal).**
 - [x] **Compilación Universal / Apple Silicon (ARM64 nativo).**
-- [x] **Instalador `.dmg` drag-and-drop:** `npm run dist` genera `TenveoStudio-1.2.0-universal.dmg` (225 MB).
+- [x] **Instalador `.dmg` drag-and-drop:** `npm run dist` genera `TenveoStudio-1.3.0-universal.dmg` (220 MB).
 - [ ] **Icono oficial de la aplicación:**
   - Diseñar y asignar el archivo `.icns` (en `tenveo_electron/build/icon.icns`).
 - [ ] **Firma con Developer ID y notarización:**

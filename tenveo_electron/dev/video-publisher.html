@@ -8,9 +8,15 @@
   <script>
     // Dibuja una carta de ajuste animada y la codifica en H.264 con WebCodecs.
     // Cada cuadro codificado va al proceso principal, que lo publica por RTMP.
-    const WIDTH = 640;
-    const HEIGHT = 360;
-    const FPS = 30;
+    // Arriba a la izquierda lleva la hora en que se dibujó (Date.now() en 32
+    // bloques blancos y negros), para medir la latencia de punta a punta.
+    const params = new URLSearchParams(location.search);
+    const WIDTH = Number(params.get('width')) || 640;
+    const HEIGHT = Number(params.get('height')) || 360;
+    const FPS = Number(params.get('fps')) || 30;
+    const BITRATE = Number(params.get('bitrate')) || 1_000_000;
+    const GOP = Number(params.get('gop')) || FPS;
+    const STAMP_BLOCK = Math.floor(WIDTH / 48);
     const canvas = document.createElement('canvas');
     canvas.width = WIDTH;
     canvas.height = HEIGHT;
@@ -30,9 +36,14 @@
       ctx.fillRect(x, HEIGHT * 0.74, 60, HEIGHT * 0.2);
       ctx.font = 'bold 28px -apple-system, Helvetica, sans-serif';
       ctx.fillStyle = '#ffffff';
-      ctx.fillText('TENVEO · PRUEBA DE VIDEO', 24, 48);
+      ctx.fillText('TENVEO · PRUEBA DE VIDEO', 24, STAMP_BLOCK + 40);
       ctx.font = '20px Menlo, monospace';
       ctx.fillText(`cuadro ${n}`, 24, HEIGHT - 18);
+      const stamp = Date.now() % 2 ** 32;
+      for (let bit = 0; bit < 32; bit += 1) {
+        ctx.fillStyle = Math.floor(stamp / 2 ** (31 - bit)) % 2 ? '#ffffff' : '#000000';
+        ctx.fillRect(bit * STAMP_BLOCK, 0, STAMP_BLOCK, STAMP_BLOCK);
+      }
     }
 
     function toBytes(source) {
@@ -43,11 +54,12 @@
     }
 
     async function start() {
+      // Baseline 3.1 alcanza para 720p30; más arriba hace falta High 4.2.
       const config = {
-        codec: 'avc1.42E01F',
+        codec: WIDTH * HEIGHT * FPS > 1280 * 720 * 30 ? 'avc1.64002A' : 'avc1.42E01F',
         width: WIDTH,
         height: HEIGHT,
-        bitrate: 1_000_000,
+        bitrate: BITRATE,
         framerate: FPS,
         latencyMode: 'realtime',
         avc: { format: 'avc' },
@@ -75,7 +87,7 @@
       setInterval(() => {
         draw(n);
         const frame = new VideoFrame(canvas, { timestamp: Math.round((n * 1_000_000) / FPS) });
-        encoder.encode(frame, { keyFrame: n % FPS === 0 });
+        encoder.encode(frame, { keyFrame: n % GOP === 0 });
         frame.close();
         n += 1;
       }, 1000 / FPS);

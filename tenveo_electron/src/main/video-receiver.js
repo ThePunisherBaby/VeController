@@ -1,28 +1,19 @@
-// Recibe el video del PC500 por la red y lo entrega a la ventana como FLV.
+// Toma el video del servidor RTMP interno del PC500
+// (rtmp://<IP del PC500>:1935/live/<clave>) y lo entrega a la ventana como FLV.
 //
-// Dos modos:
-//   push: la app abre un servidor RTMP (puerto 1935) y el PC500 transmite a
-//         rtmp://<IP de la Mac>:1935/live con la clave de la app.
-//   pull: la app se conecta al servidor RTMP del propio PC500
-//         (rtmp://<IP del PC500>:1935/live/<clave>).
-//
-// El video se reenvía sin recodificar como FLV por HTTP en 127.0.0.1, con la
-// cabecera y el último GOP guardados para que la imagen arranque al instante.
-// El protocolo RTMP sale de Node-Media-Server (vendor/node-media-server).
+// El video se reenvía sin recodificar por HTTP en 127.0.0.1, con la cabecera y
+// el último GOP guardados para que la imagen arranque al instante. El protocolo
+// RTMP sale de Node-Media-Server (vendor/node-media-server).
 
 import { EventEmitter } from 'node:events';
 import http from 'node:http';
-import net from 'node:net';
 import AMF from './vendor/node-media-server/protocol/amf.js';
 import Flv from './vendor/node-media-server/protocol/flv.js';
-import Rtmp from './vendor/node-media-server/protocol/rtmp.js';
 import RtmpClient from './vendor/node-media-server/protocol/rtmp_client.js';
 import logger from './vendor/node-media-server/core/logger.js';
-import { localIPv4Networks } from './lan-discovery.js';
 
 logger.level = 'error';
 
-const STREAM_APP = 'live';
 const MAX_GOP_TAGS = 2048;
 // Sin paquetes durante este tiempo se da el video por cortado, aunque la
 // conexión siga abierta (el servidor del PC500 la mantiene si se apaga STREAM).
@@ -131,14 +122,12 @@ export class VideoReceiver extends EventEmitter {
   #stallMs;
   #http = null;
   #httpPort = 0;
-  #rtmpServer = null;
-  #publisher = null;
   #pull = null;
   #pullTimer = null;
   #stallTimer = null;
   #lastPacketAt = 0;
   #config = { mode: 'off' };
-  #status = { mode: 'off', state: 'off', playUrl: '', rtmpUrls: [], key: '', source: '', error: '', info: null };
+  #status = { mode: 'off', state: 'off', playUrl: '', source: '', error: '', info: null };
 
   constructor({ stallMs = STALL_MS } = {}) {
     super();
@@ -153,21 +142,20 @@ export class VideoReceiver extends EventEmitter {
     return this.#relay;
   }
 
-  // mode: 'push' | 'pull' | 'off'. Para push: { key, rtmpPort, rtmpHost }.
+  // mode: 'pull' | 'off'.
   // Para pull: { url, tcUrl }. tcUrl es la dirección que se le anuncia al
   // servidor; algunos la leen, así que conviene que sea una que conozcan.
   async configure(config = {}) {
-    const next = { mode: 'off', rtmpPort: 1935, rtmpHost: '0.0.0.0', ...config };
+    const next = { mode: 'off', ...config };
     if (JSON.stringify(next) === JSON.stringify(this.#config)) return this.#status;
     await this.#teardown();
     this.#config = next;
     if (next.mode === 'off') {
-      this.#setStatus({ mode: 'off', state: 'off', playUrl: '', rtmpUrls: [], key: '', source: '', error: '', info: null });
+      this.#setStatus({ mode: 'off', state: 'off', playUrl: '', source: '', error: '', info: null });
       return this.#status;
     }
     await this.#startHttp();
-    if (next.mode === 'push') await this.#startPush(next);
-    else if (next.mode === 'pull') this.#startPull(next);
+    if (next.mode === 'pull') this.#startPull(next);
     return this.#status;
   }
 
@@ -189,16 +177,7 @@ export class VideoReceiver extends EventEmitter {
         // Ya estaba cerrado.
       }
     }
-    if (this.#publisher) {
-      this.#publisher.destroy();
-      this.#publisher = null;
-    }
     this.#relay.reset();
-    if (this.#rtmpServer) {
-      const server = this.#rtmpServer;
-      this.#rtmpServer = null;
-      await new Promise((resolve) => server.close(() => resolve()));
-    }
   }
 
   #setStatus(patch) {
@@ -260,102 +239,12 @@ export class VideoReceiver extends EventEmitter {
     }
   }
 
-  // --- Modo push: el PC500 transmite a esta Mac ---
-
-  async #startPush({ key, rtmpPort, rtmpHost }) {
-    const server = net.createServer((socket) => this.#onRtmpSocket(socket, key));
-    try {
-      await new Promise((resolve, reject) => {
-        server.once('error', reject);
-        server.listen(rtmpPort, rtmpHost, () => resolve());
-      });
-    } catch (error) {
-      const message = error.code === 'EADDRINUSE'
-        ? `El puerto ${rtmpPort} está ocupado. Cierra otro servidor RTMP o cambia el puerto.`
-        : `No se pudo abrir el puerto ${rtmpPort}: ${error.message}`;
-      this.#setStatus({ mode: 'push', state: 'error', error: message, playUrl: '', rtmpUrls: [], key });
-      return;
-    }
-    this.#rtmpServer = server;
-    const port = server.address().port;
-    const rtmpUrls = localIPv4Networks().map((n) => `rtmp://${n.address}:${port}/${STREAM_APP}`);
-    this.#setStatus({ mode: 'push', state: 'listening', error: '', playUrl: this.playUrl, rtmpUrls, key, source: '' });
-  }
-
-  get rtmpPort() {
-    return this.#rtmpServer?.address()?.port ?? 0;
-  }
-
-  #onRtmpSocket(socket, key) {
-    socket.setNoDelay(true);
-    const rtmp = new Rtmp();
-    let isPublisher = false;
-    let rejected = false;
-    const reject = () => {
-      rejected = true;
-      socket.destroy();
-    };
-
-    // Se valida antes de que el protocolo responda "publicación aceptada", así
-    // un codificador con otra clave ve el error al instante.
-    const acceptPublish = rtmp.onPublish.bind(rtmp);
-    rtmp.onPublish = (message) => {
-      const name = String(message?.streamName ?? '').split('?')[0];
-      const busy = this.#publisher && this.#publisher !== socket;
-      if (rtmp.streamApp !== STREAM_APP || name !== key || busy) {
-        reject();
-        return;
-      }
-      acceptPublish(message);
-    };
-    // Esta app no reparte video por RTMP.
-    rtmp.onPlay = reject;
-
-    rtmp.onConnectCallback = (req) => {
-      // Solo se acepta la app "live" con la clave de esta Mac.
-      if (req.app !== STREAM_APP || req.name !== key) {
-        rejected = true;
-        socket.destroy();
-      }
-    };
-    rtmp.onPushCallback = () => {
-      // El protocolo avisa la conexión y la publicación seguidas.
-      if (rejected || socket.destroyed) return;
-      if (this.#publisher && this.#publisher !== socket) {
-        socket.destroy();
-        return;
-      }
-      this.#publisher = socket;
-      isPublisher = true;
-      this.#relay.reset();
-      this.#setStatus({ state: 'receiving', source: socket.remoteAddress ?? '', error: '', info: null });
-    };
-    rtmp.onPlayCallback = () => socket.destroy();
-    rtmp.onOutputCallback = (buffer) => {
-      if (!socket.destroyed) socket.write(buffer);
-    };
-    rtmp.onPacketCallback = (packet) => {
-      if (isPublisher) this.#onPacket(packet);
-    };
-    socket.on('data', (data) => {
-      const error = rtmp.parserData(data);
-      if (error) socket.destroy();
-    });
-    socket.on('error', () => {});
-    socket.on('close', () => {
-      if (!isPublisher || this.#publisher !== socket) return;
-      this.#publisher = null;
-      this.#relay.reset();
-      if (this.#config.mode === 'push') this.#setStatus({ state: 'listening', source: '', info: null });
-    });
-  }
-
-  // --- Modo pull: la Mac lee el servidor RTMP del PC500 ---
+  // --- Lectura del servidor RTMP del PC500 ---
 
   // Estados: connecting (buscando el servidor), waiting (conectado, sin video:
   // STREAM apagado) y receiving.
   #startPull({ url, tcUrl }) {
-    this.#setStatus({ mode: 'pull', state: 'connecting', error: '', playUrl: this.playUrl, rtmpUrls: [], key: '', source: url, info: null });
+    this.#setStatus({ mode: 'pull', state: 'connecting', error: '', playUrl: this.playUrl, source: url, info: null });
     this.#stallTimer = setInterval(() => {
       if (this.#status.state !== 'receiving' || Date.now() - this.#lastPacketAt < this.#stallMs) return;
       this.#relay.reset();

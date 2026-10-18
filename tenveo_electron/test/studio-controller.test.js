@@ -39,7 +39,6 @@ class FakeTenveo extends FakeService {
   start() { return this.record('start'); }
   stop() { return this.record('stop'); }
   retry() { return this.record('retry'); }
-  setMode(mode) { return this.record('setMode', mode); }
   setEthernetIp(ip) { return this.record('setEthernetIp', ip); }
   selectPreview(cam) { return this.record('selectPreview', cam); }
   switchLive(cam) { return this.record('switchLive', cam); }
@@ -116,72 +115,31 @@ test('solo acepta comandos y valores conocidos', () => {
   assert.throws(() => controller.dispatch('selectPreview', '9'), /Cámara desconocida/);
   assert.throws(() => controller.dispatch('setVolume', 'xx', -6), /Canal desconocido/);
   assert.throws(() => controller.dispatch('pressButton', 'sys_ip'), /Botón desconocido/);
-  assert.throws(() => controller.dispatch('setConnectionMode', 'wifi'), /Modo de conexión desconocido/);
-  assert.throws(() => controller.dispatch('setVideoSource', 'ndi'), /Fuente de video desconocida/);
+  // Ya no hay modos USB ni fuentes de video que elegir.
+  assert.throws(() => controller.dispatch('setConnectionMode', 'usb'), /Comando desconocido/);
+  assert.throws(() => controller.dispatch('setVideoSource', 'usb'), /Comando desconocido/);
   controller.dispatch('switchLive', 'aux');
   controller.dispatch('toggleMute', 'mic1');
   controller.dispatch('pressButton', 'stream');
   assert.deepEqual(tenveo.calls.slice(-3), [['switchLive', 'aux'], ['toggleMute', 'mic1'], ['pressButton', 'stream']]);
 });
 
-test('crea y guarda una clave de video desde el primer arranque', () => {
-  const { controller, saved } = setup();
-  const key = controller.snapshot().settings.videoKey;
-  assert.match(key, /^tenveo[a-z0-9]{1,8}$/);
-  assert.equal(saved[0][0].videoKey, key);
-  const again = setup({ settings: { videoKey: 'mia_123' } });
-  assert.equal(again.controller.snapshot().settings.videoKey, 'mia_123');
-  assert.equal(again.saved.length, 0);
-});
-
-test('cambia y guarda el modo de conexión y la fuente de video', () => {
-  const { controller, tenveo, saved } = setup();
-  controller.dispatch('setConnectionMode', 'network');
-  assert.deepEqual(tenveo.calls.at(-1), ['setMode', 'network']);
-  assert.equal(saved.at(-1)[0].connectionMode, 'network');
-  controller.dispatch('setVideoSource', 'usb', 'camara-123');
-  assert.equal(saved.at(-1)[0].videoSource, 'usb');
-  assert.equal(saved.at(-1)[0].videoDeviceId, 'camara-123');
-});
-
-test('aprende la IP que informa el equipo por USB', () => {
-  const { controller, tenveo } = setup();
-  tenveo.set({ connection: 'usb', device: { ...tenveo.state.device, ip: '192.168.1.50' } });
-  assert.equal(controller.snapshot().settings.ethernetIp, '192.168.1.50');
-  assert.equal(controller.snapshot().settings.ethernetIpSource, 'auto');
-  assert.deepEqual(tenveo.calls.at(-1), ['setEthernetIp', '192.168.1.50']);
-
-  // Si el equipo cambia de IP, la aprendida se actualiza.
-  tenveo.set({ device: { ...tenveo.state.device, ip: '192.168.1.60' } });
-  assert.equal(controller.snapshot().settings.ethernetIp, '192.168.1.60');
-});
-
-test('nunca pisa una IP escrita a mano ni aprende por Ethernet', () => {
-  const manual = setup({ settings: { ethernetIp: '10.0.0.9', ethernetIpSource: 'manual' } });
-  manual.tenveo.set({ connection: 'usb', device: { ...manual.tenveo.state.device, ip: '192.168.1.50' } });
-  assert.equal(manual.controller.snapshot().settings.ethernetIp, '10.0.0.9');
-
-  const lan = setup();
-  lan.tenveo.set({ connection: 'ethernet', device: { ...lan.tenveo.state.device, ip: '192.168.1.50' } });
-  assert.equal(lan.controller.snapshot().settings.ethernetIp, '');
+test('arranca conectando a la IP guardada, sin escribir nada', () => {
+  const { tenveo, saved } = setup({ settings: { ethernetIp: 'fe80::1%en0' } });
+  assert.ok(tenveo.calls.some(([n, ip]) => n === 'setEthernetIp' && ip === 'fe80::1%en0'));
+  assert.equal(saved.length, 0);
 });
 
 test('guarda la configuración y reconecta', () => {
   const { controller, tenveo, obs, saved } = setup();
   const settings = controller.dispatch('saveSettings', {
     ethernetIp: ' 192.168.1.188 ',
-    connectionMode: 'auto',
     obsHost: '127.0.0.1',
     obsPort: '4456',
     obsPassword: 'secreto',
-    videoSource: 'push',
-    rtmpPort: '1936',
   });
   assert.equal(settings.ethernetIp, '192.168.1.188');
-  assert.equal(settings.ethernetIpSource, 'manual');
   assert.equal(settings.obsPort, 4456);
-  assert.equal(settings.videoSource, 'push');
-  assert.equal(settings.rtmpPort, 1936);
   assert.equal(settings.hasObsPassword, true);
   const [lastSettings, lastPassword] = saved.at(-1);
   assert.equal(lastSettings.ethernetIp, '192.168.1.188');
@@ -203,41 +161,25 @@ test('rechaza valores inválidos al guardar', () => {
   assert.throws(() => controller.dispatch('saveSettings', { ethernetIp: 'http://x/' }), /IP no válida/);
   assert.throws(() => controller.dispatch('saveSettings', { obsPort: 70000 }), /Puerto de OBS no válido/);
   assert.throws(() => controller.dispatch('saveSettings', { obsHost: 'a b' }), /Dirección de OBS no válida/);
-  assert.throws(() => controller.dispatch('saveSettings', { connectionMode: 'bluetooth' }), /Modo de conexión no válido/);
-  assert.throws(() => controller.dispatch('saveSettings', { videoSource: 'ndi' }), /Fuente de video no válida/);
-  assert.throws(() => controller.dispatch('saveSettings', { rtmpPort: 0 }), /Puerto RTMP no válido/);
 });
 
-test('normaliza una configuración guardada', () => {
-  const bad = normalizeSettings({
-    ethernetIp: 'mal/ip',
-    obsHost: '',
-    obsPort: 'abc',
-    syncWithObs: 'si',
-    connectionMode: 'x',
-    videoSource: 'ndi',
-    videoKey: 'con espacios',
-    rtmpPort: 99999,
-  });
+test('normaliza una configuración guardada y descarta las opciones viejas', () => {
+  const bad = normalizeSettings({ ethernetIp: 'mal/ip', obsHost: '', obsPort: 'abc', syncWithObs: 'si' });
   assert.deepEqual(bad, { ...DEFAULT_SETTINGS });
 
-  const good = normalizeSettings({
-    ethernetIp: '10.0.0.5',
+  // Una configuración de la 1.2.0, con modos USB y fuente de video.
+  const old = normalizeSettings({
+    ethernetIp: 'fe80::10bf:b2ff:feee:6e2d%en0',
     ethernetIpSource: 'auto',
-    connectionMode: 'network',
+    connectionMode: 'usb',
     obsHost: 'mac-estudio.local',
     obsPort: 4444,
     syncWithObs: false,
-    videoSource: 'pull',
-    videoDeviceId: 'abc',
+    videoSource: 'usb',
     videoKey: 'clave_1',
     rtmpPort: 1936,
   });
-  assert.equal(good.connectionMode, 'network');
-  assert.equal(good.videoSource, 'pull');
-  assert.equal(good.videoKey, 'clave_1');
-  assert.equal(good.rtmpPort, 1936);
-  assert.equal(good.ethernetIpSource, 'auto');
+  assert.deepEqual(old, { ethernetIp: 'fe80::10bf:b2ff:feee:6e2d%en0', obsHost: 'mac-estudio.local', obsPort: 4444, syncWithObs: false });
 });
 
 test('la foto del estado no incluye los datos crudos del equipo', () => {

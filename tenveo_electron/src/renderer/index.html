@@ -2,11 +2,10 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; media-src 'self' blob:; connect-src 'self' ws: wss: http://127.0.0.1:*; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; media-src 'none'; connect-src 'self' ws: wss: http://127.0.0.1:*; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tenveo Studio</title>
   <link rel="stylesheet" href="./styles/app.css">
-  <script src="./vendor/mpegts/mpegts.js"></script>
   <script type="module" src="./js/app.js"></script>
 </head>
 <body>
@@ -71,12 +70,12 @@
           <figure class="monitor monitor--pgm" id="pgm-monitor">
             <div class="monitor-inner">
               <div class="screen">
-                <video id="pgm-video" muted playsinline hidden></video>
+                <canvas id="pgm-canvas" width="1920" height="1080" hidden></canvas>
                 <div class="placeholder" id="pgm-placeholder">
                   <svg class="placeholder-icon"><use href="#i-camera"/></svg>
                   <span class="placeholder-cam" id="pgm-cam">CAM 1</span>
                   <span class="placeholder-sub" id="pgm-sub">HDMI 1</span>
-                  <span class="placeholder-hint" id="pgm-hint">Sin video. Elige una fuente en Equipo.</span>
+                  <span class="placeholder-hint" id="pgm-hint">Esperando el PC500…</span>
                 </div>
                 <span class="screen-badge" id="video-badge" hidden></span>
                 <span class="screen-black" id="pgm-black" hidden>FTB</span>
@@ -169,28 +168,10 @@
           </div>
           <div class="section">
             <span class="section-label">Video en el monitor PGM</span>
-            <label class="field">
-              <span>Fuente</span>
-              <select id="video-source">
-                <option value="off">Sin video</option>
-                <option value="pull">Red: video del PC500 (recomendado)</option>
-                <option value="push">Red: el PC500 transmite a esta Mac</option>
-                <option value="usb">USB: captura de la salida de video</option>
-              </select>
-            </label>
-            <label class="field" id="camera-field" hidden>
-              <span>Cámara</span>
-              <select id="video-camera"></select>
-            </label>
-            <p class="status-line" id="video-status">Sin video.</p>
+            <p class="status-line" id="video-status">Esperando el PC500…</p>
             <div class="button-row" id="video-actions" hidden>
               <button class="btn btn--primary" type="button" data-action="start-device-stream" id="start-stream">Encender STREAM</button>
               <button class="btn" type="button" data-action="stop-device-stream" id="stop-stream">Apagar STREAM</button>
-            </div>
-            <div class="manual" id="video-manual" hidden>
-              <span id="video-manual-label"></span>
-              <code id="video-server"></code>
-              <span>Clave: <code id="video-key"></code></span>
             </div>
           </div>
         </section>
@@ -207,12 +188,7 @@
 
       <div class="section">
         <span class="section-label">PC500</span>
-        <div class="segmented" role="radiogroup" aria-label="Ruta de conexión" id="conn-mode">
-          <button type="button" role="radio" data-action="conn-mode" data-mode="auto">Automático</button>
-          <button type="button" role="radio" data-action="conn-mode" data-mode="usb">Solo USB</button>
-          <button type="button" role="radio" data-action="conn-mode" data-mode="network">Solo red</button>
-        </div>
-        <p class="hint">Automático usa USB si está conectado y, si no, la red.</p>
+        <p class="hint">Todo va por la red: control y video. Con un cable directo entre el PC500 y la Mac, "Buscar en la red" lo encuentra solo.</p>
         <div class="field-row">
           <label class="field">
             <span>IP del PC500 en la red</span>
@@ -220,9 +196,8 @@
           </label>
           <button class="btn btn--icon" type="button" data-action="discover" id="discover-btn"><svg class="icon"><use href="#i-search"/></svg>Buscar en la red</button>
         </div>
-        <p class="hint" id="ip-hint"></p>
         <div class="discovery" id="discovery" hidden></div>
-        <p class="hint" id="adb-text">Buscando adb…</p>
+        <p class="hint" id="adb-text"></p>
       </div>
 
       <div class="section">
@@ -250,7 +225,7 @@
       <p class="form-error" id="settings-error" role="alert" hidden></p>
       <footer class="dialog-actions">
         <button class="btn btn--ghost" type="button" data-action="open-panel">Panel web del equipo</button>
-        <button class="btn btn--ghost" type="button" data-action="auto-usb">Reintentar USB</button>
+        <button class="btn btn--ghost" type="button" data-action="reconnect">Reconectar</button>
         <span class="spacer"></span>
         <button class="btn" type="button" data-action="close-settings">Cancelar</button>
         <button class="btn btn--primary" type="submit">Guardar y conectar</button>

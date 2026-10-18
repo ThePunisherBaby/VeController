@@ -135,60 +135,7 @@ test('lee resolución y cuadros por segundo de los metadatos', () => {
   assert.equal(videoInfoFromPacket(packet(9, 0, KEYFRAME, 3)), null);
 });
 
-test('modo push: recibe el RTMP del PC500 y lo entrega como FLV', async (t) => {
-  const receiver = new VideoReceiver();
-  t.after(() => receiver.close());
-  const status = await receiver.configure({ mode: 'push', key: 'clave1', rtmpPort: 0, rtmpHost: '127.0.0.1' });
-  assert.equal(status.state, 'listening');
-  assert.equal(status.key, 'clave1');
-  assert.match(status.playUrl, /^http:\/\/127\.0\.0\.1:\d+\/live\.flv$/);
-
-  const publisher = await publish(`rtmp://127.0.0.1:${receiver.rtmpPort}/live/clave1`);
-  t.after(() => publisher.disconnect());
-  await until(() => receiver.status.state === 'receiving');
-  assert.equal(receiver.status.source.replace('::ffff:', ''), '127.0.0.1');
-  await until(() => receiver.relay.hasVideo);
-
-  const tags = parseFlv(await readFlv(status.playUrl, flvSize(STREAM)));
-  const video = tags.filter((tag) => tag.type === 9).map((tag) => tag.data);
-  assert.deepEqual(video, [VIDEO_HEADER, KEYFRAME, INTERFRAME]);
-  assert.deepEqual(tags.filter((tag) => tag.type === 8).map((tag) => tag.data), [AUDIO_HEADER, AUDIO_FRAME]);
-
-  publisher.disconnect();
-  await until(() => receiver.status.state === 'listening');
-});
-
-test('modo push: rechaza otra clave y un segundo emisor', async (t) => {
-  const receiver = new VideoReceiver();
-  t.after(() => receiver.close());
-  await receiver.configure({ mode: 'push', key: 'buena', rtmpPort: 0, rtmpHost: '127.0.0.1' });
-  const url = (key) => `rtmp://127.0.0.1:${receiver.rtmpPort}/live/${key}`;
-
-  await assert.rejects(publish(url('mala'), []));
-  await sleep(100);
-  assert.equal(receiver.status.state, 'listening');
-
-  const first = await publish(url('buena'), []);
-  t.after(() => first.disconnect());
-  await until(() => receiver.status.state === 'receiving');
-  await assert.rejects(publish(url('buena'), []));
-  assert.equal(receiver.status.state, 'receiving');
-});
-
-test('modo push: avisa si el puerto está ocupado', async (t) => {
-  const blocker = net.createServer();
-  await new Promise((resolve) => blocker.listen(0, '127.0.0.1', resolve));
-  const receiver = new VideoReceiver();
-  t.after(async () => {
-    await receiver.close();
-    await new Promise((resolve) => blocker.close(resolve));
-  });
-  const status = await receiver.configure({ mode: 'push', key: 'k', rtmpPort: blocker.address().port, rtmpHost: '127.0.0.1' });
-  assert.equal(status.state, 'error');
-  assert.match(status.error, /ocupado/);
-});
-
-test('modo pull: lee el servidor RTMP del equipo', async (t) => {
+test('lee el servidor RTMP del equipo', async (t) => {
   const NodeMediaServer = require('node-media-server');
   const nmsLogger = require('node-media-server/src/core/logger.js');
   const port = await freePort();
@@ -231,7 +178,7 @@ test('modo pull: lee el servidor RTMP del equipo', async (t) => {
   assert.deepEqual(video[1], KEYFRAME);
 });
 
-test('modo pull: espera con STREAM apagado, detecta el corte y vuelve solo', async (t) => {
+test('espera con STREAM apagado, detecta el corte y vuelve solo', async (t) => {
   const NodeMediaServer = require('node-media-server');
   const nmsLogger = require('node-media-server/src/core/logger.js');
   const port = await freePort();
@@ -290,12 +237,14 @@ test('modo pull: espera con STREAM apagado, detecta el corte y vuelve solo', asy
   stopStream();
 });
 
-test('apagar el receptor cierra los puertos', async () => {
+test('apagar el receptor corta el video y deja de intentar', async () => {
   const receiver = new VideoReceiver();
-  await receiver.configure({ mode: 'push', key: 'k', rtmpPort: 0, rtmpHost: '127.0.0.1' });
-  const port = receiver.rtmpPort;
+  await receiver.configure({ mode: 'pull', url: 'rtmp://127.0.0.1:1/live/live2' });
+  assert.equal(receiver.status.mode, 'pull');
+  const url = receiver.status.playUrl;
   await receiver.stop();
   assert.equal(receiver.status.state, 'off');
-  await assert.rejects(publish(`rtmp://127.0.0.1:${port}/live/k`, []));
+  assert.equal(receiver.status.playUrl, '');
   await receiver.close();
+  await assert.rejects(fetch(url));
 });

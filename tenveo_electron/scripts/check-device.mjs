@@ -42,7 +42,7 @@ if (!host) {
   process.exit(1);
 }
 
-const service = new TenveoService({ mode: 'network', WebSocketImpl: LowLatencyWebSocket, heartbeatMs: 500 });
+const service = new TenveoService({ WebSocketImpl: LowLatencyWebSocket, heartbeatMs: 500 });
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const waitFor = (predicate, timeoutMs = 5000) =>
   new Promise((resolve, reject) => {
@@ -97,7 +97,7 @@ async function previewTest() {
 
 // Mide lo que llega del servidor RTMP del PC500, tal como lo recibe la app.
 function watchVideo(receiver) {
-  const info = { firstVideoMs: null, firstKeyMs: null, frames: 0, keyframes: 0, bytes: 0, audio: 0, firstDts: null, lastDts: null, codec: '', meta: null };
+  const info = { firstVideoMs: null, firstKeyMs: null, frames: 0, keyframes: 0, bytes: 0, audio: 0, firstDts: null, lastDts: null, codec: '', meta: null, arrivals: [] };
   const started = performance.now();
   const relay = receiver.relay;
   const push = relay.push.bind(relay);
@@ -114,6 +114,7 @@ function watchVideo(receiver) {
         info.bytes += packet.size;
         info.firstDts ??= packet.dts;
         info.lastDts = packet.dts;
+        info.arrivals.push({ at: performance.now(), dts: packet.dts });
       }
     } else if (packet.codec_type === 8 && packet.flags === 1) {
       info.audio += 1;
@@ -192,6 +193,18 @@ async function videoTest(address) {
     const size = meta.width && meta.height ? `${meta.width}x${meta.height}` : 'sin dato';
     console.log(`  video: ${info.codec || '—'} · ${size} · ${fps.toFixed(1)} cuadros/s · ${mbps.toFixed(2)} Mbit/s · cuadro clave cada ${gop.toFixed(0)} cuadros`);
     console.log(`  audio: ${info.audio - before.audio > 0 ? `${info.audio - before.audio} paquetes en ${seconds.toFixed(1)} s` : 'no trae'}`);
+    // Cómo llegan los cuadros: si el servidor los junta y los manda a ráfagas,
+    // el monitor tiene que esperar el largo de una ráfaga para no saltar.
+    const recent = info.arrivals.slice(-Math.round(videoSeconds * 50));
+    const offsets = recent.map((a) => a.at - a.dts);
+    const min = Math.min(...offsets);
+    const spread = offsets.map((o) => o - min).sort((a, b) => a - b);
+    const gaps = recent.slice(1).map((a, i) => a.at - recent[i].at);
+    const bursts = gaps.filter((g) => g > 50);
+    console.log(
+      `  llegada: dispersión p50 ${spread[Math.floor(spread.length * 0.5)].toFixed(0)} ms · p95 ${spread[Math.floor(spread.length * 0.95)].toFixed(0)} ms · ` +
+        `${bursts.length} pausas de más de 50 ms (mediana ${bursts.length ? bursts.sort((a, b) => a - b)[Math.floor(bursts.length / 2)].toFixed(0) : 0} ms)`,
+    );
     if (Object.keys(meta).length) console.log('  metadatos del equipo:', JSON.stringify(meta));
     console.log(`  FLV local para la ventana: ${player.result.signature === 'FLV' ? 'ok' : 'sin datos'} · ${(player.result.bytes / 1e6).toFixed(2)} MB leídos`);
   } finally {

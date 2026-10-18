@@ -1,13 +1,9 @@
-// Puente USB con el PC500 por ADB (reemplaza a tenveo_bridge.py dentro de la app).
+// Video del PC500 por adb en red.
 //
-// Cada pocos segundos revisa "adb devices". Cuando aparece el equipo, reenvía
-// su WebSocket (8089), su panel web (80) y su servidor RTMP (1935) a esta Mac.
-// Al salir quita los reenvíos que creó.
-//
-// El PC500 también acepta adb por red (puerto 5555). Sin USB, si se le indica
-// la dirección del equipo, el puente se conecta por red y reenvía solo el RTMP:
-// el servidor de video del PC500 escucha solo por IPv4, y así llega igual por
-// un cable directo (IPv6 de enlace local) sin configurar la red de la Mac.
+// El servidor de video del PC500 (RTMP en el 1935) escucha solo por IPv4. Por
+// un cable directo, la Mac solo le habla por IPv6 de enlace local, así que la
+// app se conecta al adb del equipo por red (puerto 5555) y reenvía su 1935 al
+// 19350 de esta Mac. Al salir quita el reenvío y se desconecta.
 
 import { execFile } from 'node:child_process';
 import { EventEmitter } from 'node:events';
@@ -15,17 +11,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-// El servidor RTMP del equipo se reenvía al 19350, no al 1935, para no chocar
-// con el servidor RTMP de la propia app.
+// El servidor RTMP del equipo queda en el 19350 de esta Mac.
 export const RTMP_FORWARD_PORT = 19350;
 
 export const ADB_NETWORK_PORT = 5555;
-
-export const DEFAULT_FORWARDS = Object.freeze([
-  Object.freeze({ name: 'websocket', local: 'tcp:8089', remote: 'tcp:8089', required: true }),
-  Object.freeze({ name: 'panel', local: 'tcp:8080', remote: 'tcp:80', required: false }),
-  Object.freeze({ name: 'rtmp', local: `tcp:${RTMP_FORWARD_PORT}`, remote: 'tcp:1935', required: false }),
-]);
 
 // Interpreta la salida de "adb devices -l".
 export function parseAdbDevices(stdout) {
@@ -50,12 +39,6 @@ export function isNetworkSerial(serial) {
 
 export function adbNetworkSerial(host) {
   return String(host).includes(':') ? `[${host}]:${ADB_NETWORK_PORT}` : `${host}:${ADB_NETWORK_PORT}`;
-}
-
-// Prefiere un equipo real conectado antes que un emulador de Android.
-export function pickDevice(devices) {
-  const ready = devices.filter((d) => d.state === 'device');
-  return ready.find((d) => !d.serial.startsWith('emulator-')) ?? ready[0] ?? null;
 }
 
 export function adbCandidates({ env = process.env, resourcesPath = null, vendorDir = null, home = os.homedir() } = {}) {
@@ -112,15 +95,31 @@ export async function findAdb(options = {}) {
   return findAdbInLoginShell(options);
 }
 
-function runFile(file, args, timeoutMs = 5000) {
+// Corre adb con un límite de tiempo que se cumple siempre. Es pública para
+// poder probarla.
+export function runFile(file, args, timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
-    execFile(file, args, { timeout: timeoutMs }, (error, stdout, stderr) => {
-      if (error) {
-        reject(new Error(String(stderr || error.message).trim()));
-        return;
-      }
-      resolve({ stdout: String(stdout), stderr: String(stderr) });
+    let settled = false;
+    const finish = (settle, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(guard);
+      settle(value);
+    };
+    const child = execFile(file, args, { timeout: timeoutMs }, (error, stdout, stderr) => {
+      if (error) finish(reject, new Error(String(stderr || error.message).trim()));
+      else finish(resolve, { stdout: String(stdout), stderr: String(stderr) });
     });
+    // Un adb trabado dentro del sistema puede no terminar nunca, ni con SIGKILL:
+    // el puente no se queda esperándolo.
+    const guard = setTimeout(() => {
+      try {
+        child.kill('SIGKILL');
+      } catch {
+        // Ya había terminado.
+      }
+      finish(reject, new Error('adb no respondió'));
+    }, timeoutMs + 1000);
   });
 }
 
@@ -131,37 +130,17 @@ export class AdbBridge extends EventEmitter {
   #run;
   #pollMs;
   #refreshEvery;
-  #forwards;
   #timer = null;
   #running = false;
   #ticks = 0;
-  #forwardedSerial = null;
-  #usbRtmp = false;
-  #networkTarget = '';
-  #networkSerial = null;
-  #networkOwned = null;
-  #networkRetryAt = 0;
-  #status = {
-    state: 'idle',
-    adbPath: null,
-    serial: '',
-    model: '',
-    panelForwarded: false,
-    rtmpForwarded: false,
-    rtmpVia: '',
-    network: { state: 'off', message: '' },
-    message: '',
-  };
+  #target = '';
+  #forwarded = null;
+  #owned = null;
+  #retryAt = 0;
+  #lastServerRestart = 0;
+  #status = { state: 'idle', adbPath: null, rtmpForwarded: false, message: '' };
 
-  constructor({
-    adbPath = null,
-    findOptions = {},
-    finder = findAdb,
-    run = runFile,
-    pollMs = 3000,
-    refreshEvery = 5,
-    forwards = DEFAULT_FORWARDS,
-  } = {}) {
+  constructor({ adbPath = null, findOptions = {}, finder = findAdb, run = runFile, pollMs = 3000, refreshEvery = 5 } = {}) {
     super();
     this.#adbPath = adbPath;
     this.#findOptions = findOptions;
@@ -169,17 +148,16 @@ export class AdbBridge extends EventEmitter {
     this.#run = run;
     this.#pollMs = pollMs;
     this.#refreshEvery = refreshEvery;
-    this.#forwards = forwards;
   }
 
   get status() {
     return this.#status;
   }
 
-  // Dirección del PC500 para llegar por adb en red, o '' para no usarlo. Se
-  // aplica en la próxima revisión.
+  // Dirección del PC500 (IPv4 o IPv6 de enlace local), o '' para no usar adb.
+  // Se aplica en la próxima revisión.
   setNetworkTarget(host) {
-    this.#networkTarget = host ? adbNetworkSerial(host) : '';
+    this.#target = host ? adbNetworkSerial(host) : '';
   }
 
   async start() {
@@ -189,12 +167,10 @@ export class AdbBridge extends EventEmitter {
     if (!this.#adbPath) this.#adbPath = await this.#finder(this.#findOptions);
     if (!this.#running) return;
     if (!this.#adbPath) {
-      this.#setStatus({
-        state: 'no-adb',
-        message: 'No se encontró adb. Instálalo con: brew install android-platform-tools',
-      });
+      this.#setStatus({ state: 'no-adb', message: 'No se encontró adb. Instálalo con: brew install android-platform-tools' });
       return;
     }
+    this.#setStatus({ state: 'off', message: '' });
     await this.#loop();
   }
 
@@ -202,107 +178,49 @@ export class AdbBridge extends EventEmitter {
     this.#running = false;
     clearTimeout(this.#timer);
     this.#timer = null;
-    const serial = this.#forwardedSerial;
-    this.#forwardedSerial = null;
-    this.#usbRtmp = false;
-    if (this.#adbPath && serial) {
-      for (const forward of this.#forwards) {
-        try {
-          await this.#run(this.#adbPath, ['-s', serial, 'forward', '--remove', forward.local]);
-        } catch {
-          // El reenvío ya no existía.
-        }
-      }
-    }
-    await this.#releaseNetwork();
-    this.#setStatus({ state: 'stopped', serial: '', model: '', panelForwarded: false, network: { state: 'off', message: '' }, message: '' });
+    await this.#release();
+    this.#setStatus({ state: 'stopped', message: '' });
   }
 
-  // Revisa los equipos una vez. Es pública para poder probarla.
+  // Revisa una vez. Es pública para poder probarla.
   async tick() {
     this.#ticks += 1;
+    const wanted = this.#target;
+    const stale = (serial) => serial && serial !== wanted;
+    if (stale(this.#forwarded) || stale(this.#owned)) await this.#release();
+    if (!wanted) {
+      if (this.#status.state !== 'off') this.#setStatus({ state: 'off', message: '' });
+      return;
+    }
+
     const { stdout } = await this.#run(this.#adbPath, ['devices', '-l']);
     if (!this.#running) return;
-    const devices = parseAdbDevices(stdout);
-    const usbDevices = devices.filter((d) => !isNetworkSerial(d.serial));
-    const target = pickDevice(usbDevices);
-    const refresh = this.#ticks % this.#refreshEvery === 0;
-
-    // Con USB no hace falta la red: el USB ya reenvía el RTMP.
-    await this.#syncNetwork(target ? '' : this.#networkTarget, devices, refresh);
-    if (!this.#running) return;
-
-    if (!target) {
-      this.#forwardedSerial = null;
-      this.#usbRtmp = false;
-      const unauthorized = usbDevices.find((d) => d.state === 'unauthorized');
-      const offline = usbDevices.find((d) => d.state === 'offline');
-      if (unauthorized) {
-        this.#setStatus({ state: 'unauthorized', serial: unauthorized.serial, model: '', panelForwarded: false, message: 'El equipo pide autorizar la conexión USB.' });
-      } else if (offline) {
-        this.#setStatus({ state: 'offline', serial: offline.serial, model: '', panelForwarded: false, message: 'El equipo aparece desconectado en adb.' });
-      } else {
-        this.#setStatus({ state: 'waiting', serial: '', model: '', panelForwarded: false, message: 'Esperando el PC500 por USB…' });
-      }
-      return;
-    }
-
-    if (this.#forwardedSerial === target.serial && !refresh) return;
-
-    let panelForwarded = false;
-    let rtmpForwarded = false;
-    for (const forward of this.#forwards) {
-      try {
-        await this.#run(this.#adbPath, ['-s', target.serial, 'forward', forward.local, forward.remote]);
-        if (forward.name === 'panel') panelForwarded = true;
-        if (forward.name === 'rtmp') rtmpForwarded = true;
-      } catch (error) {
-        if (forward.required) {
-          this.#forwardedSerial = null;
-          throw new Error(`No se pudo reenviar ${forward.local}: ${error.message}`);
-        }
-      }
-      if (!this.#running) return;
-    }
-
-    this.#forwardedSerial = target.serial;
-    this.#usbRtmp = rtmpForwarded;
-    this.#setStatus({
-      state: 'forwarded',
-      serial: target.serial,
-      model: target.model,
-      panelForwarded,
-      message: `USB activo con ${target.model || target.serial}`,
-    });
-  }
-
-  // Conecta adb por red con el equipo pedido y reenvía su RTMP.
-  async #syncNetwork(wanted, devices, refresh) {
-    const stale = (serial) => serial && serial !== wanted;
-    if (stale(this.#networkSerial) || stale(this.#networkOwned)) await this.#releaseNetwork();
-    if (!wanted) {
-      if (this.#status.network.state !== 'off') this.#setStatus({ network: { state: 'off', message: '' } });
-      return;
-    }
-    let device = devices.find((d) => d.serial === wanted);
+    let device = parseAdbDevices(stdout).find((d) => d.serial === wanted);
     if (device?.state !== 'device') {
-      this.#networkSerial = null;
+      this.#forwarded = null;
       // Tras un fallo se espera unas vueltas antes de volver a intentar.
-      if (this.#ticks < this.#networkRetryAt) return;
-      this.#setStatus({ network: { state: 'connecting', message: 'Conectando adb por red con el PC500…' } });
+      if (this.#ticks < this.#retryAt) return;
+      this.#setStatus({ state: 'connecting', message: 'Conectando con el video del PC500…' });
       const fail = (state, message) => {
-        this.#networkRetryAt = this.#ticks + 5;
-        this.#setStatus({ network: { state, message } });
+        this.#retryAt = this.#ticks + 5;
+        this.#setStatus({ state, message });
       };
       try {
-        const { stdout } = await this.#run(this.#adbPath, ['connect', wanted], 8000);
-        if (!/connected to/i.test(stdout)) throw new Error(stdout.trim() || 'sin respuesta');
+        let { stdout: answer } = await this.#run(this.#adbPath, ['connect', wanted], 8000);
+        // Si el cable o el PC500 se reiniciaron, el servidor de adb puede quedar
+        // con la ruta vieja ("No route to host"): se reinicia y se prueba otra vez.
+        if (/no route to host|network is unreachable/i.test(answer) && Date.now() - this.#lastServerRestart > 60000) {
+          this.#lastServerRestart = Date.now();
+          await this.#run(this.#adbPath, ['kill-server']).catch(() => {});
+          ({ stdout: answer } = await this.#run(this.#adbPath, ['connect', wanted], 8000));
+        }
+        if (!/connected to/i.test(answer)) throw new Error(answer.trim() || 'sin respuesta');
         // Si ya estaba conectado lo dejó otro programa: al salir no se desconecta.
-        if (!/already connected/i.test(stdout)) this.#networkOwned = wanted;
+        if (!/already connected/i.test(answer)) this.#owned = wanted;
         const { stdout: list } = await this.#run(this.#adbPath, ['devices', '-l']);
         device = parseAdbDevices(list).find((d) => d.serial === wanted);
       } catch (error) {
-        fail('error', `No se pudo usar adb por red: ${error.message}`);
+        fail('error', `No se pudo abrir el video por adb en red: ${error.message}`);
         return;
       }
       if (device?.state !== 'device') {
@@ -311,23 +229,25 @@ export class AdbBridge extends EventEmitter {
         return;
       }
     }
-    if (this.#networkSerial === wanted && !refresh) return;
+    if (!this.#running) return;
+    const refresh = this.#ticks % this.#refreshEvery === 0;
+    if (this.#forwarded === wanted && !refresh) return;
     try {
       await this.#run(this.#adbPath, ['-s', wanted, 'forward', `tcp:${RTMP_FORWARD_PORT}`, 'tcp:1935']);
-      this.#networkSerial = wanted;
-      this.#setStatus({ network: { state: 'ready', message: 'Video por adb en red' } });
+      this.#forwarded = wanted;
+      this.#setStatus({ state: 'ready', message: 'Video por adb en red' });
     } catch (error) {
-      this.#networkSerial = null;
-      this.#setStatus({ network: { state: 'error', message: `No se pudo reenviar el video por adb en red: ${error.message}` } });
+      this.#forwarded = null;
+      this.#setStatus({ state: 'error', message: `No se pudo reenviar el video por adb en red: ${error.message}` });
     }
   }
 
-  async #releaseNetwork() {
-    const forwarded = this.#networkSerial;
-    const owned = this.#networkOwned;
-    this.#networkSerial = null;
-    this.#networkOwned = null;
-    this.#networkRetryAt = 0;
+  async #release() {
+    const forwarded = this.#forwarded;
+    const owned = this.#owned;
+    this.#forwarded = null;
+    this.#owned = null;
+    this.#retryAt = 0;
     if (!this.#adbPath) return;
     if (forwarded) {
       try {
@@ -351,16 +271,13 @@ export class AdbBridge extends EventEmitter {
     try {
       await this.tick();
     } catch (error) {
-      if (this.#running) this.#setStatus({ state: 'error', panelForwarded: false, message: String(error?.message ?? error) });
+      if (this.#running) this.#setStatus({ state: 'error', message: String(error?.message ?? error) });
     }
     if (this.#running) this.#timer = setTimeout(() => this.#loop(), this.#pollMs);
   }
 
   #setStatus(patch) {
-    const next = { ...this.#status, ...patch, adbPath: this.#adbPath };
-    // El RTMP del equipo llega por USB si lo hay, si no por adb en red.
-    next.rtmpVia = this.#usbRtmp ? 'usb' : this.#networkSerial ? 'network' : '';
-    next.rtmpForwarded = next.rtmpVia !== '';
+    const next = { ...this.#status, ...patch, adbPath: this.#adbPath, rtmpForwarded: this.#forwarded !== null };
     if (JSON.stringify(next) === JSON.stringify(this.#status)) return;
     this.#status = next;
     this.emit('status', next);

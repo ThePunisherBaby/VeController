@@ -17,7 +17,7 @@ console.log(`PC500 simulado: ws://${host}:${pc500.port}`);
 console.log(`OBS simulado:   ws://${host}:${obs.port}${process.env.MOCK_OBS_PASSWORD ? ' (con contraseña)' : ''}`);
 console.log('');
 console.log('App de Electron contra los simuladores:');
-console.log(`  TENVEO_USB_URL=ws://127.0.0.1:${pc500.port} TENVEO_OBS_PORT=${obs.port} TENVEO_DISABLE_ADB=1 npm start`);
+console.log(`  TENVEO_ETHERNET_IP=127.0.0.1 TENVEO_PC500_PORT=${pc500.port} TENVEO_OBS_PORT=${obs.port} TENVEO_DISABLE_ADB=1 npm start`);
 console.log('Versión web contra los simuladores (en otra terminal: npm run web):');
 console.log(`  http://localhost:8765/?pc500=ws://127.0.0.1:${pc500.port}&obs=127.0.0.1:${obs.port}`);
 console.log('');

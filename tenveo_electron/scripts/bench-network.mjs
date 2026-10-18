@@ -44,11 +44,18 @@ async function loadOldService() {
   return { OldService: module.TenveoService, dir };
 }
 
-// Como en cada versión de la app: la anterior usaba el WebSocket de Node y la
-// actual usa LowLatencyWebSocket, en modo USB para ir directo a la dirección.
+// Como en cada versión de la app: la anterior usaba el WebSocket de Node (y su
+// ruta USB apuntada a la dirección) y la actual usa LowLatencyWebSocket por red.
+function currentService(url, extra = {}) {
+  const { hostname, port } = new URL(url);
+  const service = new TenveoService({ ethernetPort: Number(port), WebSocketImpl: LowLatencyWebSocket, ...extra });
+  service.setEthernetIp(hostname);
+  return service;
+}
+
 const versions = (OldService) => [
   { name: 'anterior', create: (url, extra = {}) => new OldService({ usbUrl: url, ...extra }) },
-  { name: 'actual', create: (url, extra = {}) => new TenveoService({ usbUrl: url, mode: 'usb', WebSocketImpl: LowLatencyWebSocket, ...extra }) },
+  { name: 'actual', create: currentService },
 ];
 
 // --- Utilidades ---
@@ -238,7 +245,7 @@ async function realDevice(OldService, address) {
   await proxy.close();
 
   // La actual, directa por IPv6 de enlace local, como la usa la app.
-  const direct = new TenveoService({ mode: 'network', WebSocketImpl: LowLatencyWebSocket, heartbeatMs: 500 });
+  const direct = new TenveoService({ WebSocketImpl: LowLatencyWebSocket, heartbeatMs: 500 });
   const started = performance.now();
   direct.setEthernetIp(address);
   direct.start();

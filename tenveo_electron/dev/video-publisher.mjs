@@ -1,6 +1,7 @@
 // Emisor de video de prueba (proceso principal de Electron).
 // Publica por RTMP una carta de ajuste en H.264, como lo haría el PC500 al
 // transmitir. Uso: PUBLISH_URL=rtmp://127.0.0.1:1935/live/clave electron dev/video-publisher.mjs
+// (y PUBLISH_WIDTH, PUBLISH_HEIGHT, PUBLISH_FPS, PUBLISH_BITRATE, PUBLISH_GOP)
 
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
@@ -74,7 +75,11 @@ app.whenReady().then(async () => {
       sentHeader = true;
     }
     const dts = Math.round(chunk.timestamp);
-    const body = Buffer.concat([Buffer.from([chunk.key ? 0x17 : 0x27, 0x01, 0, 0, 0]), Buffer.from(chunk.data)]);
+    let data = Buffer.from(chunk.data);
+    // PUBLISH_CORRUPT_AT=N manda el cuadro N con datos rotos, para probar que
+    // el monitor se recupera de un error del decodificador.
+    if (Number(process.env.PUBLISH_CORRUPT_AT) === frames + 1) data = Buffer.from(data.map((_, i) => (i * 97 + 13) & 0xff));
+    const body = Buffer.concat([Buffer.from([chunk.key ? 0x17 : 0x27, 0x01, 0, 0, 0]), data]);
     send(videoPacket(dts, body));
     frames += 1;
     if (frames === 1 || frames % 90 === 0) console.log(`[emisor] ${frames} cuadros enviados`);
@@ -88,5 +93,12 @@ app.whenReady().then(async () => {
     show: false,
     webPreferences: { preload: path.join(here, 'video-publisher-preload.cjs'), contextIsolation: true, sandbox: true },
   });
-  win.loadFile(path.join(here, 'video-publisher.html'));
+  // PUBLISH_WIDTH, PUBLISH_HEIGHT, PUBLISH_FPS, PUBLISH_BITRATE y PUBLISH_GOP
+  // cambian el video; por defecto, 640x360 a 30 cuadros y 1 Mbit/s.
+  const query = {};
+  for (const name of ['width', 'height', 'fps', 'bitrate', 'gop']) {
+    const value = process.env[`PUBLISH_${name.toUpperCase()}`];
+    if (value) query[name] = value;
+  }
+  win.loadFile(path.join(here, 'video-publisher.html'), { query });
 });

@@ -1,8 +1,6 @@
-// Conexión WebSocket con el Tenveo PC500.
-//
-// Rutas: puente USB (adb forward a 127.0.0.1:8089) e IP Ethernet. El modo
-// "auto" prueba USB y después la red; "usb" y "network" usan solo una ruta.
-// Si la conexión se cae, vuelve a intentar sin olvidar la IP.
+// Conexión WebSocket con el Tenveo PC500, solo por red: ws://<IP>:8089, con
+// IPv4 o con IPv6 de enlace local (cable directo). Si la conexión se cae,
+// vuelve a intentar sin olvidar la IP.
 //
 // Optimizaciones de red:
 //   - Latido con ping de WebSocket (si la implementación lo permite, como en
@@ -28,13 +26,10 @@ import {
   isChannelMuted,
 } from './pc500-protocol.js';
 
-export const CONNECTION_MODES = Object.freeze(['auto', 'usb', 'network']);
-
 // En vivo importa enterarse rápido de un corte: ping cada segundo, conexión
 // muerta tras 4 s sin respuesta y reintentos cada vez más espaciados, desde
 // 250 ms hasta 2 s, para volver enseguida tras un corte breve.
 const DEFAULTS = Object.freeze({
-  usbUrl: 'ws://127.0.0.1:8089',
   ethernetPort: 8089,
   firstRetryMs: 250,
   retryMs: 2000,
@@ -85,7 +80,6 @@ export class TenveoService {
   #retryRequested = false;
   #running = false;
   #ethernetIp = '';
-  #mode = 'auto';
   #heartbeat = null;
   #lastMessageAt = 0;
   #pendingLatest = new Map();
@@ -94,7 +88,6 @@ export class TenveoService {
   constructor(options = {}) {
     this.#options = { ...DEFAULTS, ...options };
     this.#WebSocket = options.WebSocketImpl ?? globalThis.WebSocket;
-    if (options.mode) this.#mode = CONNECTION_MODES.includes(options.mode) ? options.mode : 'auto';
   }
 
   get state() {
@@ -105,12 +98,8 @@ export class TenveoService {
     return this.#ethernetIp;
   }
 
-  get mode() {
-    return this.#mode;
-  }
-
   get isConnected() {
-    return this.#state.connection === 'usb' || this.#state.connection === 'ethernet';
+    return this.#state.connection === 'ethernet';
   }
 
   onChange(listener) {
@@ -131,7 +120,7 @@ export class TenveoService {
     this.#update({ connection: 'disconnected', endpoint: '', latencyMs: null });
   }
 
-  // Guarda la IP Ethernet. Si ya hay conexión por USB en modo auto, se mantiene USB.
+  // Guarda la IP del PC500 y reconecta si cambió.
   setEthernetIp(ip) {
     const next = String(ip ?? '').trim();
     const changed = next !== this.#ethernetIp;
@@ -141,24 +130,9 @@ export class TenveoService {
     else if (!this.isConnected) this.retry();
   }
 
-  setMode(mode) {
-    if (!CONNECTION_MODES.includes(mode)) throw new RangeError(`Modo de conexión desconocido: ${mode}`);
-    if (mode === this.#mode) return;
-    this.#mode = mode;
-    if (!this.#running) return;
-    if (this.isConnected && !this.#routeAllowed()) this.#reconnectNow();
-    else if (!this.isConnected) this.retry();
-  }
-
-  #routeAllowed(connection = this.#state.connection) {
-    if (connection === 'usb') return this.#mode !== 'network';
-    if (connection === 'ethernet') return this.#mode !== 'usb';
-    return true;
-  }
-
   // Intenta conectar ya, sin esperar el próximo reintento. Si hay un intento
-  // en curso, se repite apenas termine: un cambio de modo o de IP en ese
-  // instante no debe perderse.
+  // en curso, se repite apenas termine: un cambio de IP en ese instante no
+  // debe perderse.
   retry() {
     if (!this.#running) return;
     clearTimeout(this.#retryTimer);
@@ -192,28 +166,23 @@ export class TenveoService {
     this.#retryRequested = false;
     this.#update({ connection: 'connecting' });
 
-    if (this.#mode !== 'network') {
-      const usb = new URL(this.#options.usbUrl);
-      await this.#tryConnect(this.#options.usbUrl, 'usb', `USB (Bridge: ${usb.host})`);
-    }
-
     const ip = this.#ethernetIp;
-    if (!this.isConnected && this.#mode !== 'usb' && this.#running && !this.#retryRequested) {
-      if (!ip) {
-        if (this.#mode === 'network') this.#update({ lastError: 'Escribe la IP del PC500 o búscalo en la red.' });
-      } else if (isValidHost(ip)) {
-        const port = this.#options.ethernetPort;
-        await this.#tryConnect(`ws://${hostForUrl(ip)}:${port}`, 'ethernet', `Ethernet LAN (${ip}:${port})`);
-      } else {
-        this.#update({ lastError: `IP no válida: ${ip}` });
-      }
+    if (!ip) {
+      this.#update({ lastError: 'Falta la IP del PC500: búscalo en la red.' });
+    } else if (isValidHost(ip)) {
+      const port = this.#options.ethernetPort;
+      await this.#tryConnect(`ws://${hostForUrl(ip)}:${port}`, 'ethernet', `Red (${ip}:${port})`);
+    } else {
+      this.#update({ lastError: `IP no válida: ${ip}` });
     }
 
     this.#connecting = false;
     // Se decide con el estado real: la conexión pudo cambiar mientras se esperaba.
     if (!this.#running) return;
     if (this.isConnected) {
-      if (!this.#routeAllowed()) this.#reconnectNow();
+      // La IP cambió mientras se conectaba: se reconecta a la nueva.
+      if (this.#retryRequested && ip !== this.#ethernetIp) this.#reconnectNow();
+      this.#retryRequested = false;
       return;
     }
     if (this.#retryRequested) {
@@ -418,7 +387,10 @@ export class TenveoService {
 
   // --- Comandos ---
 
+  // Si la cámara ya está en Preview no se manda nada: el equipo guardaría el
+  // comando y taparía su luz para quien se conecte después.
   selectPreview(cam) {
+    if (this.isConnected && String(cam) === this.#state.pvw) return true;
     return this.send(cmdSelectPreview(cam));
   }
 

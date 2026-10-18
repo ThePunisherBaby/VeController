@@ -8,16 +8,13 @@ import { until, waitFor } from './helpers.js';
 
 test('modo demo: el servicio del PC500 funciona con el simulador sin red', async (t) => {
   const simulator = createPc500Simulator({ autoDelayMs: 20 });
-  const service = new TenveoService({
-    usbUrl: 'ws://simulador:8089',
-    WebSocketImpl: createSimulatedWebSocket(simulator),
-    switchLiveDelayMs: 10,
-  });
+  const service = new TenveoService({ WebSocketImpl: createSimulatedWebSocket(simulator), switchLiveDelayMs: 10 });
   t.after(() => service.stop());
 
+  service.setEthernetIp('simulador');
   service.start();
-  const state = await waitFor(service, (s) => s.connection === 'usb' && s.volumes.in2 === -8);
-  assert.equal(state.endpoint, 'USB (Bridge: simulador:8089)');
+  const state = await waitFor(service, (s) => s.connection === 'ethernet' && s.volumes.in2 === -8);
+  assert.equal(state.endpoint, 'Red (simulador:8089)');
 
   service.switchLive('aux');
   await waitFor(service, (s) => s.pgm === 'aux');

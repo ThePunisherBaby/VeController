@@ -36,19 +36,22 @@ export function createLocalBackend() {
   const params = new URLSearchParams(location.search);
   const demo = params.has('demo');
   const settings = demo ? {} : readSettings();
-  // El video por red lo recibe el proceso principal de la app de escritorio.
-  if (settings.videoSource !== 'usb') settings.videoSource = 'off';
 
   const tenveoOptions = {};
   const obsOptions = {};
   if (demo) {
-    tenveoOptions.usbUrl = 'ws://simulador:8089';
     tenveoOptions.WebSocketImpl = createSimulatedWebSocket(createPc500Simulator());
     obsOptions.WebSocketImpl = createSimulatedWebSocket(createObsSimulator());
+    settings.ethernetIp = 'simulador';
     settings.obsHost = 'simulador';
   } else {
+    // ?pc500=ws://<IP>:<puerto> fija el equipo (lo usan las pruebas).
     const pc500 = params.get('pc500');
-    if (pc500 && /^wss?:\/\//.test(pc500)) tenveoOptions.usbUrl = pc500;
+    if (pc500 && /^wss?:\/\//.test(pc500)) {
+      const url = new URL(pc500);
+      settings.ethernetIp = url.hostname.replace(/^\[|\]$/g, '');
+      if (url.port) tenveoOptions.ethernetPort = Number(url.port);
+    }
     const obsParam = params.get('obs');
     if (obsParam) {
       const [host, port] = obsParam.split(':');

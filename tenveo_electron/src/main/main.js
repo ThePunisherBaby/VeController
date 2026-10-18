@@ -1,32 +1,29 @@
 // Proceso principal de Tenveo Studio.
 //
-// Aquí viven las conexiones: WebSocket del PC500, WebSocket de OBS, el puente
-// ADB, la búsqueda en la red local y el receptor de video. La ventana solo
-// dibuja la consola y manda comandos por IPC.
+// Todo va por red: el WebSocket del PC500 (IPv4 o IPv6 de enlace local por
+// cable directo), el WebSocket de OBS, la búsqueda en la red local y el video,
+// que la app toma del servidor interno del PC500 (directo o por adb en red).
+// La ventana solo dibuja la consola y manda comandos por IPC.
 //
 // Variables de entorno para desarrollo y pruebas:
-//   TENVEO_USB_URL        WebSocket del PC500 por USB (por defecto ws://127.0.0.1:8089)
+//   TENVEO_ETHERNET_IP    IP del PC500 al arrancar (también fe80::…%en0)
+//   TENVEO_PC500_PORT     puerto del WebSocket del PC500 (por defecto 8089)
 //   TENVEO_OBS_HOST, TENVEO_OBS_PORT, TENVEO_OBS_PASSWORD
-//   TENVEO_DISABLE_ADB=1  no usar adb
+//   TENVEO_DISABLE_ADB=1  no usar adb en red para el video
 //   TENVEO_USER_DATA      carpeta de datos alternativa
-//   TENVEO_VIDEO          fuente de video al arrancar (off, push, pull, usb)
-//   TENVEO_VIDEO_KEY      clave que espera el servidor RTMP de la app (modo push)
-//   TENVEO_RTMP_PORT      puerto del servidor RTMP de la app
-//   TENVEO_RTMP_HOST      dirección donde escucha (por defecto todas; 127.0.0.1 en pruebas)
 //   TENVEO_DEVICE_RTMP_PORT  puerto del servidor RTMP del PC500 por IPv4 (pruebas; 1935)
 //   TENVEO_SMOKE_SHOT     guarda una captura PNG de la ventana y cierra la app
 //   TENVEO_SMOKE_CLICKS   selectores CSS separados por "|" para pulsar antes de la captura
 //   TENVEO_SMOKE_WAIT_VIDEO=1  espera a que el monitor PGM muestre video antes de la captura
 //   TENVEO_SMOKE_VIDEO_TIMEOUT_MS  cuánto esperar ese video (por defecto 15000)
 //   TENVEO_SMOKE_STOP_STREAM=1 al terminar, apaga STREAM si ningún destino sale a internet
-//   TENVEO_ETHERNET_IP, TENVEO_CONNECTION_MODE  IP del PC500 y modo de conexión al arrancar
 
-import { app, BrowserWindow, ipcMain, net, protocol, safeStorage, session, shell, systemPreferences } from 'electron';
+import { app, BrowserWindow, ipcMain, net, protocol, safeStorage, session, shell } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ObsService } from '../core/obs-service.js';
-import { deviceVideoPlan, isIPv4, streamDestinations } from '../core/pc500-protocol.js';
+import { deviceVideoPlan, isIPv4 } from '../core/pc500-protocol.js';
 import { StudioController } from '../core/studio-controller.js';
 import { TenveoService, hostForUrl, isLinkLocal } from '../core/tenveo-service.js';
 import { AdbBridge, RTMP_FORWARD_PORT } from './adb-bridge.js';
@@ -104,10 +101,10 @@ function macFacing(deviceIp) {
 }
 
 // Cómo llega la app al servidor RTMP del PC500, que escucha solo por IPv4: por
-// el reenvío de adb (USB o red) o por la IPv4 del equipo si la Mac está en su red.
+// el reenvío de adb en red o por la IPv4 del equipo si la Mac está en su red.
 function deviceRtmpRoute() {
   const { extras } = controller.snapshot();
-  if (extras.adb?.rtmpForwarded) return { host: '127.0.0.1', port: RTMP_FORWARD_PORT, via: extras.adb.rtmpVia };
+  if (extras.adb?.rtmpForwarded) return { host: '127.0.0.1', port: RTMP_FORWARD_PORT, via: 'adb' };
   const ip = deviceOwnIp();
   if (!ip) return null;
   return { host: ip, port: Number(env.TENVEO_DEVICE_RTMP_PORT) || 1935, via: macFacing(ip) ? 'lan' : 'ip' };
@@ -117,24 +114,14 @@ function deviceRtmpRoute() {
 function syncAdbTarget() {
   if (!adb) return;
   const { switcher, settings } = controller.snapshot();
-  const needed =
-    settings.videoSource === 'pull' && switcher.connection === 'ethernet' && settings.ethernetIp && !macFacing(deviceOwnIp());
+  const needed = switcher.connection === 'ethernet' && settings.ethernetIp && !macFacing(deviceOwnIp());
   adb.setNetworkTarget(needed ? settings.ethernetIp : '');
-}
-
-// Un destino de STREAM que apunta al servidor RTMP de esta Mac (modo push).
-function isMacServer(server) {
-  const match = /^rtmp:\/\/([^/:]+)(?::(\d+))?\/live\/?$/i.exec(String(server).trim());
-  if (!match) return false;
-  const port = Number(match[2] || 1935);
-  const own = new Set(['127.0.0.1', ...macNetworks().map((n) => n.address)]);
-  return own.has(match[1]) && port === (receiver?.rtmpPort || controller.snapshot().settings.rtmpPort);
 }
 
 // Usa el estado completo del servicio: la foto del controlador no trae los
 // datos crudos del equipo, donde están los destinos de STREAM.
 function videoPlan() {
-  return deviceVideoPlan(tenveo.state, { isLocal: isMacServer });
+  return deviceVideoPlan(tenveo.state);
 }
 
 // Lo que la ventana necesita para explicar el video: ruta, destino que se lee
@@ -142,7 +129,7 @@ function videoPlan() {
 let lastDeviceVideo = '';
 function syncDeviceVideo() {
   const { switcher } = controller.snapshot();
-  const connected = switcher.connection === 'usb' || switcher.connection === 'ethernet';
+  const connected = switcher.connection === 'ethernet';
   const ip = deviceOwnIp();
   const facing = macFacing(ip);
   const plan = videoPlan();
@@ -168,21 +155,14 @@ let videoQueue = Promise.resolve();
 let lastVideoConfig = '';
 
 function videoConfig() {
-  const { settings } = controller.snapshot();
-  if (settings.videoSource === 'push') {
-    return { mode: 'push', key: settings.videoKey, rtmpPort: settings.rtmpPort, rtmpHost: env.TENVEO_RTMP_HOST || '0.0.0.0' };
-  }
-  if (settings.videoSource === 'pull') {
-    const route = deviceRtmpRoute();
-    const { key } = videoPlan();
-    if (!route || !key) return { mode: 'off', waiting: route ? 'key' : 'route' };
-    return {
-      mode: 'pull',
-      url: `rtmp://${hostForUrl(route.host)}:${route.port}/live/${key}`,
-      tcUrl: `rtmp://${deviceOwnIp() || '127.0.0.1'}:1935/live`,
-    };
-  }
-  return { mode: 'off' };
+  const route = deviceRtmpRoute();
+  const { key } = videoPlan();
+  if (!route || !key) return { mode: 'off', waiting: route ? 'key' : 'route' };
+  return {
+    mode: 'pull',
+    url: `rtmp://${hostForUrl(route.host)}:${route.port}/live/${key}`,
+    tcUrl: `rtmp://${deviceOwnIp() || '127.0.0.1'}:1935/live`,
+  };
 }
 
 function syncVideo() {
@@ -205,18 +185,10 @@ function syncVideo() {
 // Enciende STREAM para ver el video en la Mac. Solo si ningún destino es una
 // plataforma externa: con STREAM el equipo transmite a sus dos destinos.
 async function startDeviceStream() {
-  const { settings } = controller.snapshot();
   if (!tenveo.isConnected) return { ok: false, error: 'Conecta primero el PC500.' };
-  if (settings.videoSource !== 'pull' && settings.videoSource !== 'push') {
-    return { ok: false, error: 'Elige primero el video por red.' };
-  }
   const plan = videoPlan();
-  if (settings.videoSource === 'pull' && !plan.key) {
+  if (!plan.key) {
     return { ok: false, error: 'Ningún destino de STREAM usa el servidor interno del PC500. En su panel, elige "Default" como servidor de uno de los destinos.' };
-  }
-  const toMac = streamDestinations(tenveo.state).some((d) => isMacServer(d.server) && d.key === settings.videoKey);
-  if (settings.videoSource === 'push' && !toMac) {
-    return { ok: false, error: 'Ningún destino de STREAM apunta a esta Mac. Ponle en el panel del PC500 el servidor y la clave que se muestran abajo.' };
   }
   if (plan.streaming) return { ok: true, result: { started: false, key: plan.key } };
   if (!plan.canStart) {
@@ -238,7 +210,7 @@ function stopDeviceStream() {
 
 // --- Red local ---
 
-async function discoverDevices() {
+async function discoverDevices({ auto = false } = {}) {
   if (discovering) return { ok: false, error: 'Ya se está buscando en la red.' };
   discovering = true;
   const { settings, switcher } = controller.snapshot();
@@ -255,6 +227,11 @@ async function discoverDevices() {
       },
     });
     controller.setExtra('discovery', { state: 'done', checked: 0, total: 0, found });
+    // Búsqueda automática: si aparece un PC500 en otra dirección, se usa.
+    const current = controller.snapshot().settings.ethernetIp;
+    if (auto && found.length && !tenveo.isConnected && !found.some((d) => d.host === current)) {
+      controller.dispatch('saveSettings', { ethernetIp: found[0].host });
+    }
     return { ok: true, result: found };
   } catch (error) {
     controller.setExtra('discovery', { state: 'error', checked: 0, total: 0, found: [], error: error.message });
@@ -264,16 +241,29 @@ async function discoverDevices() {
   }
 }
 
+// Sin IP guardada, o si el PC500 no responde hace rato, se lo busca solo en la
+// red (también por cable directo). Como mucho una vez por minuto.
+let disconnectedSince = Date.now();
+let lastAutoDiscovery = 0;
+function watchConnection() {
+  if (tenveo.isConnected) {
+    disconnectedSince = Date.now();
+    return;
+  }
+  const noIp = !controller.snapshot().settings.ethernetIp;
+  const lost = Date.now() - disconnectedSince > 20000;
+  if ((noIp || lost) && !discovering && Date.now() - lastAutoDiscovery > 60000) {
+    lastAutoDiscovery = Date.now();
+    discoverDevices({ auto: true }).catch(() => {});
+  }
+}
+
 // Los navegadores no abren direcciones IPv6 de enlace local (fe80::…%en0).
 function originalPanelUrl() {
-  const snapshot = controller.snapshot();
-  const ip = snapshot.settings.ethernetIp;
-  const usable = ip && !isLinkLocal(ip);
-  if (snapshot.switcher.connection === 'ethernet' && usable) return `http://${hostForUrl(ip)}/`;
-  if (snapshot.extras.adb?.panelForwarded) return 'http://127.0.0.1:8080/';
+  const ip = controller.snapshot().settings.ethernetIp;
+  if (ip && !isLinkLocal(ip)) return `http://${hostForUrl(ip)}/`;
   const own = deviceOwnIp();
   if (own && macFacing(own)) return `http://${own}/`;
-  if (usable) return `http://${hostForUrl(ip)}/`;
   return null;
 }
 
@@ -283,24 +273,13 @@ async function openOriginalPanel() {
     const ip = controller.snapshot().settings.ethernetIp;
     if (isLinkLocal(ip)) {
       const own = deviceOwnIp();
-      const suggestion = own ? ` o pon en el Ethernet de la Mac una IP como ${suggestMacIp(own)}` : '';
-      return { ok: false, error: `El navegador no abre el panel por el cable directo (IPv6). Conecta el USB${suggestion}.` };
+      const suggestion = own ? ` Para abrirlo, pon en el Ethernet de la Mac una IP como ${suggestMacIp(own)}.` : '';
+      return { ok: false, error: `El navegador no abre el panel por el cable directo (IPv6).${suggestion}` };
     }
-    return { ok: false, error: 'Conecta el PC500 por USB o escribe su IP Ethernet.' };
+    return { ok: false, error: 'Busca primero el PC500 en la red.' };
   }
   await shell.openExternal(url);
   return { ok: true, result: url };
-}
-
-async function requestCameraAccess() {
-  if (process.platform !== 'darwin') return { ok: true, result: true };
-  const status = systemPreferences.getMediaAccessStatus('camera');
-  if (status === 'granted') return { ok: true, result: true };
-  if (status === 'denied' || status === 'restricted') {
-    return { ok: false, error: 'macOS no deja usar la cámara. Actívala en Ajustes del Sistema > Privacidad y seguridad > Cámara.' };
-  }
-  const granted = await systemPreferences.askForMediaAccess('camera');
-  return granted ? { ok: true, result: true } : { ok: false, error: 'No se dio permiso para usar la cámara.' };
 }
 
 // --- IPC y estado ---
@@ -319,10 +298,9 @@ function schedulePush() {
 
 const MAIN_COMMANDS = {
   openOriginalPanel,
-  discoverDevices,
+  discoverDevices: () => discoverDevices(),
   startDeviceStream,
   stopDeviceStream: async () => stopDeviceStream(),
-  requestCameraAccess,
 };
 
 function registerIpc() {
@@ -344,15 +322,11 @@ function registerIpc() {
   });
 }
 
-// Solo la propia ventana puede pedir la cámara, y solo video.
+// La app no usa cámara, micrófono ni otros permisos del sistema.
 function registerPermissions() {
   const ses = session.defaultSession;
-  ses.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    const fromApp = isAppUrl(details.requestingUrl || webContents.getURL());
-    const videoOnly = (details.mediaTypes ?? []).length > 0 && details.mediaTypes.every((t) => t === 'video');
-    callback(fromApp && permission === 'media' && videoOnly);
-  });
-  ses.setPermissionCheckHandler((_webContents, permission, origin) => permission === 'media' && isAppUrl(`${origin}/`));
+  ses.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+  ses.setPermissionCheckHandler(() => false);
 }
 
 function createWindow() {
@@ -402,7 +376,7 @@ async function runSmoke(win) {
     const start = Date.now();
     while (Date.now() - start < waitMs) {
       const s = controller.snapshot();
-      const hardware = s.switcher.connection === 'usb' || s.switcher.connection === 'ethernet';
+      const hardware = s.switcher.connection === 'ethernet';
       const obs = s.obs.status === 'connected' && s.obs.scenes.length > 0;
       if (hardware && obs) break;
       await delay(150);
@@ -427,7 +401,7 @@ async function runSmoke(win) {
       const videoTimeout = Number(env.TENVEO_SMOKE_VIDEO_TIMEOUT_MS || 15000);
       while (!playing && Date.now() - videoStart < videoTimeout) {
         playing = await win.webContents.executeJavaScript(
-          `(() => { const v = document.getElementById('pgm-video'); return Boolean(v && v.readyState >= 2 && v.videoWidth > 0 && v.currentTime > 0.3); })()`,
+          `(() => { const s = globalThis.tenveoPgmStats; return Boolean(s && s.drawn > 10 && !document.getElementById('pgm-canvas').hidden); })()`,
         );
         if (!playing) await delay(200);
       }
@@ -438,10 +412,8 @@ async function runSmoke(win) {
 
     const image = await win.webContents.capturePage();
     await fs.writeFile(out, image.toPNG());
-    const videoInfo = await win.webContents.executeJavaScript(
-      `(() => { const v = document.getElementById('pgm-video'); return v ? { readyState: v.readyState, width: v.videoWidth, height: v.videoHeight, time: v.currentTime } : null; })()`,
-    );
-    await fs.writeFile(out.replace(/\.png$/i, '.json'), JSON.stringify({ ...controller.snapshot(), videoElement: videoInfo }, null, 2));
+    const monitor = await win.webContents.executeJavaScript(`globalThis.tenveoPgmStats ?? null`);
+    await fs.writeFile(out.replace(/\.png$/i, '.json'), JSON.stringify({ ...controller.snapshot(), monitor }, null, 2));
     const { width, height } = image.getSize();
     console.log(`[smoke] captura ${width}x${height} en ${out}`);
     if (env.TENVEO_SMOKE_STOP_STREAM === '1') {
@@ -473,20 +445,13 @@ async function bootstrap() {
   const store = new SettingsStore(path.join(app.getPath('userData'), 'settings.json'), safeStorage);
   const saved = await store.load();
   const settings = { ...saved.settings };
-  if (env.TENVEO_ETHERNET_IP) {
-    settings.ethernetIp = env.TENVEO_ETHERNET_IP;
-    settings.ethernetIpSource = 'manual';
-  }
-  if (env.TENVEO_CONNECTION_MODE) settings.connectionMode = env.TENVEO_CONNECTION_MODE;
+  if (env.TENVEO_ETHERNET_IP) settings.ethernetIp = env.TENVEO_ETHERNET_IP;
   if (env.TENVEO_OBS_HOST) settings.obsHost = env.TENVEO_OBS_HOST;
   if (env.TENVEO_OBS_PORT) settings.obsPort = Number(env.TENVEO_OBS_PORT);
-  if (env.TENVEO_VIDEO) settings.videoSource = env.TENVEO_VIDEO;
-  if (env.TENVEO_VIDEO_KEY) settings.videoKey = env.TENVEO_VIDEO_KEY;
-  if (env.TENVEO_RTMP_PORT) settings.rtmpPort = Number(env.TENVEO_RTMP_PORT);
   const obsPassword = env.TENVEO_OBS_PASSWORD ?? saved.obsPassword;
 
   const tenveoOptions = { WebSocketImpl: LowLatencyWebSocket };
-  if (env.TENVEO_USB_URL) tenveoOptions.usbUrl = env.TENVEO_USB_URL;
+  if (env.TENVEO_PC500_PORT) tenveoOptions.ethernetPort = Number(env.TENVEO_PC500_PORT);
   tenveo = new TenveoService(tenveoOptions);
 
   receiver = new VideoReceiver();
@@ -520,16 +485,16 @@ async function bootstrap() {
         vendorDir: path.join(PROJECT_DIR, 'vendor'),
       },
     });
-    adb.on('status', (status) => {
-      controller.setExtra('adb', status);
-      // En cuanto el puente queda listo, se intenta conectar sin esperar.
-      if (status.state === 'forwarded') controller.dispatch('retryHardware');
-    });
+    adb.on('status', (status) => controller.setExtra('adb', status));
     adb.start().catch((error) => console.error('[ADB]', error));
   }
 
   controller.start();
   syncVideo();
+  if (!env.TENVEO_SMOKE_SHOT) {
+    watchConnection();
+    setInterval(watchConnection, 5000).unref();
+  }
   mainWindow = createWindow();
   if (env.TENVEO_SMOKE_SHOT) runSmoke(mainWindow);
 }

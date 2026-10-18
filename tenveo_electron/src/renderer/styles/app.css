@@ -324,7 +324,7 @@ button.pill:hover {
   --tally: var(--pgm);
 }
 
-.screen video {
+.screen canvas {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -374,12 +374,11 @@ button.pill:hover {
   right: 10px;
   padding: 3px 8px;
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.7);
   color: var(--text);
   font-size: 10.5px;
   font-weight: 650;
   letter-spacing: 0.06em;
-  backdrop-filter: blur(6px);
 }
 
 .screen-black {
@@ -1044,17 +1043,6 @@ figcaption {
   gap: 8px;
 }
 
-.manual {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--text-3);
-  font-size: 11.5px;
-  user-select: text;
-}
 
 code {
   color: var(--text);
@@ -1114,29 +1102,8 @@ code {
   line-height: 1.45;
 }
 
-.segmented {
-  display: flex;
-  padding: 3px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--bg);
-}
 
-.segmented button {
-  flex: 1;
-  height: 28px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-2);
-  font-size: 12px;
-  font-weight: 600;
-}
 
-.segmented button[aria-checked="true"] {
-  background: var(--raised-2);
-  color: var(--text);
-}
 
 .discovery {
   display: flex;
@@ -1225,8 +1192,7 @@ code {
 }
 
 .dialog::backdrop {
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(2px);
+  background: rgba(0, 0, 0, 0.65);
 }
 
 .dialog-form {

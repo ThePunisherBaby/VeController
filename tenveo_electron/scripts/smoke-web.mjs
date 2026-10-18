@@ -75,7 +75,7 @@ const checks = [
   ['el servidor web respondió', up],
   ['la página terminó sin errores', code === 0],
   ['corrió en modo navegador', summary?.platform === 'browser'],
-  ['se conectó al PC500', summary?.hardware === 'USB'],
+  ['se conectó al PC500 por red', /^Red/.test(summary?.hardware ?? '')],
   ['se conectó a OBS', summary?.obs === 'Conectado'],
   ['CAM 4 quedó al aire', summary?.pgm === 'CAM 4 · SDI 2'],
   ['SYNC OBS marcó la escena Cam 4', summary?.currentScene === 'Cam 4'],

@@ -2,22 +2,19 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { startMockPc500 } from '../dev/mock-pc500.js';
 import { TenveoService } from '../src/core/tenveo-service.js';
-import { sleep, until, waitFor } from './helpers.js';
+import { serviceFor, sleep, until, waitFor } from './helpers.js';
 
-// Puerto 1: nadie escucha ahí, así que la ruta USB falla rápido.
-const CLOSED_USB = 'ws://127.0.0.1:1';
-
-test('se conecta por USB y lee el estado inicial', async (t) => {
+test('se conecta por red y lee el estado inicial', async (t) => {
   const mock = await startMockPc500();
-  const service = new TenveoService({ usbUrl: `ws://127.0.0.1:${mock.port}`, retryMs: 100 });
+  const service = serviceFor(mock, { retryMs: 100 });
   t.after(async () => {
     service.stop();
     await mock.close();
   });
 
   service.start();
-  const state = await waitFor(service, (s) => s.connection === 'usb' && s.volumes.in1 === -12);
-  assert.equal(state.endpoint, `USB (Bridge: 127.0.0.1:${mock.port})`);
+  const state = await waitFor(service, (s) => s.connection === 'ethernet' && s.volumes.in1 === -12);
+  assert.equal(state.endpoint, `Red (127.0.0.1:${mock.port})`);
   assert.equal(state.pgm, '1');
   assert.equal(state.pvw, '2');
   assert.equal(state.channelModes.in3, 'AFV');
@@ -26,13 +23,13 @@ test('se conecta por USB y lee el estado inicial', async (t) => {
 
 test('manda los comandos y sigue los cambios del equipo', async (t) => {
   const mock = await startMockPc500({ autoDelayMs: 50 });
-  const service = new TenveoService({ usbUrl: `ws://127.0.0.1:${mock.port}`, retryMs: 100, switchLiveDelayMs: 20 });
+  const service = serviceFor(mock, { retryMs: 100, switchLiveDelayMs: 20 });
   t.after(async () => {
     service.stop();
     await mock.close();
   });
   service.start();
-  await waitFor(service, (s) => s.connection === 'usb');
+  await waitFor(service, (s) => s.connection === 'ethernet');
 
   assert.equal(service.selectPreview('3'), true);
   await waitFor(service, (s) => s.pvw === '3');
@@ -76,10 +73,10 @@ test('manda los comandos y sigue los cambios del equipo', async (t) => {
   assert.equal(service.state.tbar, 1);
 });
 
-test('si se cae la conexión Ethernet, vuelve a conectar con la misma IP', async (t) => {
+test('si se cae la conexión, vuelve a conectar con la misma IP', async (t) => {
   let mock = await startMockPc500();
   const { port } = mock;
-  const service = new TenveoService({ usbUrl: CLOSED_USB, ethernetPort: port, retryMs: 100, connectTimeoutMs: 500 });
+  const service = new TenveoService({ ethernetPort: port, retryMs: 100, connectTimeoutMs: 500 });
   t.after(async () => {
     service.stop();
     await mock.close();
@@ -95,11 +92,11 @@ test('si se cae la conexión Ethernet, vuelve a conectar con la misma IP', async
   mock = await startMockPc500({ port });
 
   const state = await waitFor(service, (s) => s.connection === 'ethernet', 5000);
-  assert.equal(state.endpoint, `Ethernet LAN (127.0.0.1:${port})`);
+  assert.equal(state.endpoint, `Red (127.0.0.1:${port})`);
 });
 
 test('una IP no válida se rechaza sin romper el ciclo', async (t) => {
-  const service = new TenveoService({ usbUrl: CLOSED_USB, retryMs: 100, connectTimeoutMs: 300 });
+  const service = new TenveoService({ retryMs: 100, connectTimeoutMs: 300 });
   t.after(() => service.stop());
   service.setEthernetIp('http://192.168.1.10/');
   service.start();
@@ -108,7 +105,7 @@ test('una IP no válida se rechaza sin romper el ciclo', async (t) => {
 });
 
 test('sin conexión, los comandos devuelven false', () => {
-  const service = new TenveoService({ usbUrl: CLOSED_USB });
+  const service = new TenveoService();
   assert.equal(service.cut(), false);
   assert.equal(service.selectPreview('2'), false);
   assert.equal(service.setVolume('in1', -10), false);
@@ -126,7 +123,8 @@ test('reintenta cada vez más espaciado, hasta un tope', async (t) => {
     }
     close() {}
   }
-  const service = new TenveoService({ usbUrl: 'ws://127.0.0.1:9', mode: 'usb', WebSocketImpl: Refused, firstRetryMs: 20, retryMs: 160 });
+  const service = new TenveoService({ WebSocketImpl: Refused, firstRetryMs: 20, retryMs: 160 });
+  service.setEthernetIp('127.0.0.1');
   t.after(() => service.stop());
   service.start();
   await until(() => attempts.length >= 7, 3000);
@@ -134,6 +132,8 @@ test('reintenta cada vez más espaciado, hasta un tope', async (t) => {
   const gaps = attempts.slice(1, 7).map((at, i) => at - attempts[i]);
   // 20, 40, 80, 160, 160, 160 ms (con margen para el temporizador).
   assert.ok(gaps[0] < 60, `primer reintento rápido: ${gaps[0]}`);
-  for (let i = 1; i < gaps.length; i += 1) assert.ok(gaps[i] >= gaps[i - 1] - 5, `espaciado creciente: ${gaps.join(', ')}`);
+  // Con margen para la variación del temporizador cuando la máquina está ocupada.
+  for (let i = 1; i < gaps.length; i += 1) assert.ok(gaps[i] >= gaps[i - 1] - 25, `espaciado creciente: ${gaps.join(', ')}`);
+  assert.ok(gaps[3] > gaps[0] * 3, `crece de verdad: ${gaps.join(', ')}`);
   assert.ok(gaps.at(-1) >= 150 && gaps.at(-1) < 300, `tope en retryMs: ${gaps.at(-1)}`);
 });

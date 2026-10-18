@@ -2,8 +2,8 @@
 # ==============================================================================
 # TENVEO PC500 STUDIO LINK + OBS COMPANION LAUNCHER
 #
-#   ./start_app.sh            Abre la app de Electron. La app maneja ADB sola.
-#   ./start_app.sh --web      Abre la versión web en el navegador y el puente USB.
+#   ./start_app.sh            Abre la app de Electron. Todo va por la red.
+#   ./start_app.sh --web      Abre la versión web en el navegador (por la IP del PC500).
 #   ./start_app.sh --flutter  Abre la app anterior de Flutter y el puente USB.
 # ==============================================================================
 
@@ -40,22 +40,17 @@ case "$MODE" in
             echo "  Falta Node.js. Instálalo desde https://nodejs.org o con: brew install node"
             exit 1
         fi
-        echo "[1/3] Preparando el puente USB..."
-        forward_usb
-        BRIDGE_PID=""
-        if command -v python3 &> /dev/null && command -v adb &> /dev/null; then
-            python3 "$DIR/tenveo_bridge.py" > /dev/null 2>&1 &
-            BRIDGE_PID=$!
-        fi
-        echo "[2/3] Levantando la consola web en el puerto 8765..."
+        echo "[1/2] Levantando la consola web en el puerto 8765..."
         node "$ELECTRON_DIR/scripts/serve-web.mjs" --port 8765 > /dev/null 2>&1 &
         SERVER_PID=$!
-        trap 'kill $SERVER_PID $BRIDGE_PID 2>/dev/null; exit' INT TERM EXIT
+        trap 'kill $SERVER_PID 2>/dev/null; exit' INT TERM EXIT
         sleep 1
-        echo "[3/3] Abriendo el navegador..."
+        echo "[2/2] Abriendo el navegador..."
         open "http://localhost:8765"
         echo ""
         echo "  CONSOLA WEB ACTIVA EN: http://localhost:8765"
+        echo "  Escribe la IP del PC500 en los ajustes (arriba a la derecha)."
+        echo "  El video del PC500 solo se ve en la app de escritorio."
         echo "  Presiona Ctrl+C en esta terminal para detener."
         wait $SERVER_PID
         ;;

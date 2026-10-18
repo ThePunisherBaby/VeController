@@ -24,8 +24,26 @@ test('lee PGM y PVW desde las clases de los botones', () => {
 });
 
 test('un botón que parpadea no cambia PGM ni PVW', () => {
-  const state = applyDeviceUpdate(createSwitcherState(), { 'pvw-3': 'flash-red' });
+  const state = applyDeviceUpdate(createSwitcherState(), { 'pvw-1': 'active-red', 'pvw-3': 'flash-red' });
   assert.equal(state.pgm, '1');
+});
+
+test('sin cámara encendida, PGM y PVW quedan sin dato en vez de inventarse', () => {
+  // Así informó el PC500 real tras un reinicio: todas apagadas y un AUX guardado.
+  const state = applyDeviceUpdate(createSwitcherState(), {
+    'pvw-1': 'none-green',
+    'pvw-2': 'none-green',
+    'pvw-3': 'none-green',
+    'pvw-4': 'none-green',
+    'pvw-aux': 1,
+  });
+  assert.equal(state.pgm, '');
+  assert.equal(state.pvw, '');
+  const later = applyDeviceUpdate(state, { 'pvw-aux': 'active-red', 'pvw-2': 'active-green' });
+  assert.equal(later.pgm, 'aux');
+  assert.equal(later.pvw, '2');
+  // Si se apaga la luz de la cámara al aire sin otra encendida, vuelve a no saberse.
+  assert.equal(applyDeviceUpdate(later, { 'pvw-aux': 'none-green' }).pgm, '');
 });
 
 test('lee volúmenes, interruptores y modos de audio', () => {
@@ -52,10 +70,12 @@ test('audio_mic1_mode es Line in o Mic, no apaga el micrófono', () => {
 });
 
 test('detecta CUT, AUTO y FTB encendidos', () => {
-  const on = applyDeviceUpdate(createSwitcherState(), { ftb: 'active-red', auto: 'active-white', cut: 1 });
+  const on = applyDeviceUpdate(createSwitcherState(), { ftb: 'active-red', auto: 'active-white', cut: 'active-red' });
   assert.equal(on.ftb, true);
   assert.equal(on.auto, true);
   assert.equal(on.cut, true);
+  // El equipo guarda los {cut: 1} que recibe: eso no es una luz.
+  assert.equal(applyDeviceUpdate(createSwitcherState(), { cut: 1 }).cut, false);
   const off = applyDeviceUpdate(on, { ftb: 'none-red', auto: 'none-white', cut: 0 });
   assert.equal(off.ftb, false);
   assert.equal(off.auto, false);

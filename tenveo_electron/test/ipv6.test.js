@@ -57,7 +57,6 @@ test('se conecta al PC500 por IPv6 de enlace local', { skip: !loopbackLinkLocal 
   await new Promise((resolve) => server.once('listening', resolve));
   server.on('connection', (ws) => ws.send(JSON.stringify({ 'pvw-2': 'active-red', system_version: 'PC500' })));
   const service = new TenveoService({
-    mode: 'network',
     ethernetPort: server.address().port,
     WebSocketImpl: LowLatencyWebSocket,
     heartbeatMs: 100,
@@ -70,5 +69,5 @@ test('se conecta al PC500 por IPv6 de enlace local', { skip: !loopbackLinkLocal 
   service.start();
   const state = await waitFor(service, (s) => s.connection === 'ethernet' && s.pgm === '2' && typeof s.latencyMs === 'number');
   assert.equal(state.device.version, 'PC500');
-  assert.equal(state.endpoint, `Ethernet LAN (fe80::1%${iface}:${server.address().port})`);
+  assert.equal(state.endpoint, `Red (fe80::1%${iface}:${server.address().port})`);
 });

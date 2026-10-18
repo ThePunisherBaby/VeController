@@ -161,11 +161,12 @@ export function clamp01(value) {
 
 export function createSwitcherState() {
   return {
-    connection: 'disconnected', // disconnected | connecting | usb | ethernet
+    connection: 'disconnected', // disconnected | connecting | ethernet
     endpoint: '',
     lastError: null,
-    pgm: '1',
-    pvw: '2',
+    pgm: '', // '' mientras el equipo no diga qué cámara está al aire
+    pvw: '',
+    tally: {}, // id de cámara -> luz que informa el equipo (pvw-N)
     ftb: false,
     auto: false,
     cut: false,
@@ -179,10 +180,9 @@ export function createSwitcherState() {
   };
 }
 
-// Un botón del panel está encendido cuando su clase empieza con active- o
-// flash-, o cuando el equipo manda 1.
+// Un control está encendido cuando su clase empieza con active- o flash-. Un 1
+// es un comando que el equipo guardó tal cual (por ejemplo después de un CUT).
 export function isActiveValue(value) {
-  if (value === 1 || value === true) return true;
   return typeof value === 'string' && /^(active|flash)/.test(value);
 }
 
@@ -209,6 +209,7 @@ export function applyDeviceUpdate(state, data) {
   const channelModes = { ...state.channelModes };
   const buttons = { ...state.buttons };
   const device = { ...state.device };
+  const tally = { ...state.tally };
   let { pgm, pvw } = state;
 
   for (const [key, value] of Object.entries(data)) {
@@ -226,8 +227,10 @@ export function applyDeviceUpdate(state, data) {
       continue;
     }
     if (key.startsWith('pvw-')) {
-      if (typeof value === 'string' && value.includes('active')) {
-        const cam = key.slice(4);
+      if (typeof value !== 'string') continue; // un 1 guardado no es una luz
+      const cam = key.slice(4);
+      tally[cam] = value;
+      if (value.startsWith('active')) {
         if (value.includes('red')) pgm = cam;
         else if (value.includes('green')) pvw = cam;
       }
@@ -252,11 +255,18 @@ export function applyDeviceUpdate(state, data) {
     }
   }
 
+  // Si la cámara al aire (o en Preview) se apagó y no se sabe cuál la
+  // reemplazó, se busca otra encendida; si no hay, queda sin dato.
+  const lit = (color) => CAMERAS.find((c) => (tally[c.id] ?? '').startsWith('active') && tally[c.id].includes(color))?.id ?? '';
+  if (pgm && tally[pgm] && !tally[pgm].startsWith('active')) pgm = lit('red');
+  if (pvw && tally[pvw] && !tally[pvw].startsWith('active')) pvw = lit('green');
+
   return {
     ...state,
     raw,
     pgm,
     pvw,
+    tally,
     volumes,
     channelModes,
     buttons,

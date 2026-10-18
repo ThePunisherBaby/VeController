@@ -57,22 +57,13 @@ const els = {
   deviceMore: $('device-more'),
   streamTime: $('stream-time'),
   recordTime: $('record-time'),
-  videoSource: $('video-source'),
-  cameraField: $('camera-field'),
-  videoCamera: $('video-camera'),
   videoStatus: $('video-status'),
   videoActions: $('video-actions'),
   startStream: $('start-stream'),
   stopStream: $('stop-stream'),
-  videoManual: $('video-manual'),
-  videoManualLabel: $('video-manual-label'),
-  videoServer: $('video-server'),
-  videoKey: $('video-key'),
   dialog: $('settings-dialog'),
   form: $('settings-form'),
-  connMode: $('conn-mode'),
   fieldIp: $('field-ip'),
-  ipHint: $('ip-hint'),
   discoverBtn: $('discover-btn'),
   discovery: $('discovery'),
   adbText: $('adb-text'),
@@ -87,19 +78,29 @@ const els = {
 
 const backend = await connectBackend();
 document.documentElement.dataset.platform = backend.kind;
-// En el navegador no hay proceso principal que reciba el video por red.
-for (const option of [...els.videoSource.options]) {
-  if (backend.kind !== 'electron' && (option.value === 'pull' || option.value === 'push')) option.remove();
-}
 
 let snapshot = null;
 let renderQueued = false;
 
+// Cada actualización vuelve a dibujar todo, pero solo toca el DOM donde algo
+// cambió: escribir un texto igual también obliga al navegador a recalcular.
+function setText(element, text) {
+  const value = String(text);
+  if (element.textContent !== value) element.textContent = value;
+}
+
+function setHidden(element, hidden) {
+  if (element.hidden !== hidden) element.hidden = hidden;
+}
+
 const camById = new Map(CAMERAS.map((c) => [c.id, c]));
+// Sin dato del equipo (por ejemplo, recién conectado) no se inventa una cámara.
 const camLabel = (id) => {
+  if (!id) return 'Sin dato del equipo';
   const cam = camById.get(String(id));
   return cam ? `${cam.name} · ${cam.sub}` : `CAM ${id}`;
 };
+const camName = (id) => (id ? (camById.get(String(id))?.name ?? `CAM ${id}`) : '—');
 
 // --- Comandos y avisos ---
 
@@ -172,7 +173,9 @@ let volumeFrame = 0;
 function paintStrip(parts, db) {
   const level = clamp01((db - VOLUME_MIN_DB) / (VOLUME_MAX_DB - VOLUME_MIN_DB));
   const percent = `${(level * 100).toFixed(1)}%`;
-  parts.db.textContent = db <= VOLUME_MIN_DB ? '−∞' : `${Math.round(db)}`;
+  setText(parts.db, db <= VOLUME_MIN_DB ? '−∞' : `${Math.round(db)}`);
+  if (parts.percent === percent) return;
+  parts.percent = percent;
   parts.meter.style.setProperty('--level', percent);
   parts.fader.style.setProperty('--fill', percent);
 }
@@ -242,19 +245,21 @@ function buildMixer() {
 
 // --- T-Bar ---
 
-const tbarState = { pos: 0, dragging: false, pointerId: null, startY: 0, startPos: 0, frame: 0, pending: null };
+const tbarState = { pos: -1, travel: 0, dragging: false, pointerId: null, startY: 0, startPos: 0, frame: 0, pending: null };
 
 function tbarTravel() {
   return Math.max(1, els.tbarTrack.clientHeight - els.tbarHandle.offsetHeight);
 }
 
-function paintTbar(pos) {
-  tbarState.pos = pos;
+function paintTbar(pos, force = false) {
   const travel = tbarTravel();
+  if (!force && pos === tbarState.pos && travel === tbarState.travel) return;
+  tbarState.pos = pos;
+  tbarState.travel = travel;
   els.tbarHandle.style.transform = `translateY(${(pos * travel).toFixed(1)}px)`;
   els.tbarFill.style.height = `${Math.max(0, pos * travel - 6).toFixed(1)}px`;
   const percent = Math.round(pos * 100);
-  els.tbarValue.textContent = `${percent}%`;
+  setText(els.tbarValue, `${percent}%`);
   els.tbarTrack.setAttribute('aria-valuenow', String(percent));
   els.tbar.classList.toggle('is-mid', pos > 0 && pos < 1);
 }
@@ -317,58 +322,28 @@ function setupTbar() {
     queueTbar(pos);
   });
 
-  new ResizeObserver(() => paintTbar(tbarState.pos)).observe(els.tbarTrack);
+  new ResizeObserver(() => paintTbar(Math.max(0, tbarState.pos), true)).observe(els.tbarTrack);
 }
 
 // --- Video ---
 
 const pgmVideo = createPgmVideo({
-  video: $('pgm-video'),
+  canvas: $('pgm-canvas'),
   placeholder: $('pgm-placeholder'),
   hint: $('pgm-hint'),
   badge: $('video-badge'),
-  backend,
-  onCameras: () => refreshCameras(),
 });
 
-async function refreshCameras() {
-  const cameras = await pgmVideo.listCameras();
-  const selected = snapshot?.settings.videoDeviceId ?? '';
-  els.videoCamera.replaceChildren();
-  const auto = new Option('Elegir sola', '');
-  els.videoCamera.append(auto);
-  cameras.forEach((camera, index) => {
-    els.videoCamera.append(new Option(camera.label || `Cámara ${index + 1}`, camera.deviceId));
-  });
-  els.videoCamera.value = cameras.some((c) => c.deviceId === selected) ? selected : '';
-}
+// --- Ruta del video ---
 
-// --- Estado del puente USB ---
-
-function adbSummary(adb) {
-  if (snapshot?.extras?.demo) return 'Modo demo: no se usa el puente USB.';
-  if (backend.kind === 'browser') return 'Modo navegador: el puente USB lo abre start_app.sh --web o tenveo_bridge.py.';
-  if (!adb) return '';
-  switch (adb.state) {
-    case 'disabled':
-      return 'Puente USB desactivado.';
-    case 'idle':
-    case 'starting':
-      return 'Puente USB: buscando adb…';
-    case 'waiting':
-      return 'Puente USB listo. Esperando el PC500 por USB.';
-    case 'forwarded':
-      return `Puente USB activo con ${adb.model || adb.serial}.`;
-    default:
-      return adb.message ? `Puente USB: ${adb.message}` : '';
-  }
-}
-
-// El puente también puede llevar el video por adb en red (cable directo).
-function adbNetworkSummary(adb) {
-  const network = adb?.network;
-  if (!network || network.state === 'off') return '';
-  return network.state === 'ready' ? 'Video por adb en red con el PC500.' : network.message;
+// Por un cable directo el video llega por adb en red; en la misma red IPv4,
+// directo. Solo hace falta contarlo cuando algo falla o se está conectando.
+function videoRouteSummary(adb) {
+  if (snapshot?.extras?.demo) return 'Modo demo: equipo y OBS simulados.';
+  if (backend.kind === 'browser') return 'Modo navegador: el video del PC500 solo se ve en la app de escritorio.';
+  if (!adb || adb.state === 'off' || adb.state === 'stopped' || adb.state === 'disabled') return '';
+  if (adb.state === 'ready') return 'Video por el cable de red (adb).';
+  return adb.message;
 }
 
 // --- Dibujo ---
@@ -380,7 +355,6 @@ function setActive(element, active) {
 const isIPv6 = (host) => String(host).includes(':');
 
 function connectionText(sw) {
-  if (sw.connection === 'usb') return 'USB';
   if (sw.connection === 'ethernet') {
     const ip = snapshot.settings.ethernetIp;
     return isIPv6(ip) ? 'Red · directo' : `Red · ${ip}`;
@@ -389,18 +363,18 @@ function connectionText(sw) {
 }
 
 function renderTopbar(sw, obs, settings, extras) {
-  const connected = sw.connection === 'usb' || sw.connection === 'ethernet';
+  const connected = sw.connection === 'ethernet';
   els.hw.classList.toggle('is-on', connected);
-  els.hwText.textContent = connectionText(sw);
-  els.hwLatency.textContent = connected && Number.isFinite(sw.latencyMs) ? `${sw.latencyMs} ms` : '';
-  els.hw.title = [connected ? sw.endpoint : sw.lastError, adbSummary(extras?.adb), adbNetworkSummary(extras?.adb)].filter(Boolean).join('\n');
-  els.demoTag.hidden = !extras?.demo;
+  setText(els.hwText, connectionText(sw));
+  setText(els.hwLatency, connected && Number.isFinite(sw.latencyMs) ? `${sw.latencyMs} ms` : '');
+  els.hw.title = [connected ? sw.endpoint : sw.lastError, videoRouteSummary(extras?.adb)].filter(Boolean).join('\n');
+  setHidden(els.demoTag, !extras?.demo);
 
   const linked = obs.status === 'connected';
   const problem = !linked && Boolean(obs.lastError);
   els.obsPill.classList.toggle('is-on', linked);
   els.obsPill.classList.toggle('is-warn', problem);
-  els.obsPillText.textContent = linked ? 'Conectado' : problem ? 'Revisar' : 'Sin conexión';
+  setText(els.obsPillText, linked ? 'Conectado' : problem ? 'Revisar' : 'Sin conexión');
   els.obsPill.title = obs.lastError || (linked ? `OBS en ${obs.endpoint}` : 'Abre OBS y activa su servidor WebSocket.');
 
   els.sync.setAttribute('aria-pressed', String(Boolean(settings.syncWithObs)));
@@ -409,24 +383,48 @@ function renderTopbar(sw, obs, settings, extras) {
   setActive(els.obsVcam, obs.virtualCam);
 }
 
+// Preview elegido en la app que el equipo todavía no confirmó: la tecla se
+// marca en el mismo cuadro del clic y el equipo lo confirma unos ms después.
+let pendingPreview = null;
+
+function shownPreview(sw) {
+  if (pendingPreview && (pendingPreview.cam === sw.pvw || performance.now() - pendingPreview.at > 800)) pendingPreview = null;
+  return pendingPreview?.cam ?? sw.pvw;
+}
+
+function paintPreviewKeys(cam) {
+  for (const key of els.busPvw.children) key.classList.toggle('is-preview', key.dataset.cam === cam);
+}
+
+function selectPreview(cam) {
+  pendingPreview = { cam: String(cam), at: performance.now() };
+  paintPreviewKeys(pendingPreview.cam);
+  send('selectPreview', cam);
+}
+
 function renderStage(sw) {
-  const pvw = camById.get(sw.pvw);
+  const pvwId = shownPreview(sw);
+  const pvw = camById.get(pvwId);
   const pgm = camById.get(sw.pgm);
-  els.pvwCam.textContent = pvw?.name ?? `CAM ${sw.pvw}`;
-  els.pvwSub.textContent = pvw?.sub ?? '';
-  els.pvwLabel.textContent = camLabel(sw.pvw);
-  els.pgmCam.textContent = pgm?.name ?? `CAM ${sw.pgm}`;
-  els.pgmSub.textContent = pgm?.sub ?? '';
-  els.pgmLabel.textContent = camLabel(sw.pgm);
-  els.pgmBlack.hidden = !sw.ftb;
+  setText(els.pvwCam, camName(pvwId));
+  setText(els.pvwSub, pvw?.sub ?? '');
+  setText(els.pvwLabel, camLabel(pvwId));
+  setText(els.pgmCam, camName(sw.pgm));
+  setText(els.pgmSub, pgm?.sub ?? '');
+  setText(els.pgmLabel, camLabel(sw.pgm));
+  setHidden(els.pgmBlack, !sw.ftb);
 
   for (const key of els.busPgm.children) key.classList.toggle('is-program', key.dataset.cam === sw.pgm);
-  for (const key of els.busPvw.children) key.classList.toggle('is-preview', key.dataset.cam === sw.pvw);
+  paintPreviewKeys(pvwId);
 
   for (const [id, key] of panelKeys) {
     const light = buttonLight(sw.buttons?.[id]);
-    key.classList.remove('light-red', 'light-green', 'light-yellow', 'light-white', 'light-blue');
-    if (light.on) key.classList.add(`light-${['red', 'green', 'yellow', 'blue'].includes(light.color) ? light.color : 'white'}`);
+    const lightClass = light.on ? `light-${['red', 'green', 'yellow', 'blue'].includes(light.color) ? light.color : 'white'}` : '';
+    if (key.dataset.light !== lightClass) {
+      if (key.dataset.light) key.classList.remove(key.dataset.light);
+      if (lightClass) key.classList.add(lightClass);
+      key.dataset.light = lightClass;
+    }
     key.classList.toggle('is-flashing', light.flash);
   }
 
@@ -441,13 +439,17 @@ function renderMixer(sw) {
     const parts = strips.get(channel.id);
     const db = Number(sw.volumes?.[channel.id] ?? channel.defaultDb);
     if (!parts.dragging && !pendingVolumes.has(channel.id)) {
-      parts.fader.value = String(Math.round(db));
+      const value = String(Math.round(db));
+      if (parts.fader.value !== value) parts.fader.value = value;
       paintStrip(parts, db);
     }
     const mode = channelMode(sw, channel.id);
-    parts.mute.classList.toggle('is-muted', mode === 'OFF');
-    parts.mute.setAttribute('aria-pressed', String(mode === 'OFF'));
-    parts.mode.hidden = mode !== 'AFV';
+    if (parts.lastMode !== mode) {
+      parts.lastMode = mode;
+      parts.mute.classList.toggle('is-muted', mode === 'OFF');
+      parts.mute.setAttribute('aria-pressed', String(mode === 'OFF'));
+      parts.mode.hidden = mode !== 'AFV';
+    }
   }
 }
 
@@ -455,7 +457,7 @@ let scenesKey = '';
 function renderObs(obs) {
   const linked = obs.status === 'connected';
   const problem = !linked && Boolean(obs.lastError);
-  els.obsLink.textContent = linked ? 'Conectado' : problem ? 'Revisar' : 'Sin conexión';
+  setText(els.obsLink, linked ? 'Conectado' : problem ? 'Revisar' : 'Sin conexión');
   els.obsLink.classList.toggle('is-on', linked);
   els.obsLink.classList.toggle('is-warn', problem);
   els.obsLink.title = obs.lastError || (linked ? `OBS en ${obs.endpoint}` : '');
@@ -490,30 +492,20 @@ function renderObs(obs) {
   }
 }
 
-function videoStatusText(settings, video, dv, adb) {
-  const source = settings.videoSource;
-  if (source === 'off') return { text: 'Sin video en el monitor PGM.', tone: '' };
-  if (source === 'usb') return { text: 'Muestra la salida de video USB del PC500.', tone: '' };
+function videoStatusText(video, dv, adb) {
+  if (backend.kind !== 'electron') return { text: 'El video del PC500 se ve en la app de escritorio.', tone: '' };
   if (video?.state === 'receiving') {
     const info = video.info;
     const size = info?.width && info?.height ? ` · ${info.width}×${info.height}${info.fps ? ` · ${info.fps} fps` : ''}` : '';
     return { text: `En vivo${size}`, tone: 'is-on' };
   }
-  if (video?.state === 'error') return { text: video.error, tone: 'is-warn' };
   if (!dv?.connected) return { text: 'Conecta el PC500 para ver su video.', tone: '' };
-  if (source === 'push') {
-    if (!dv.sameSubnet) {
-      return { text: `Para recibir el video, la Mac necesita una IP de la red del PC500 (${dv.deviceIp}): ponle en Ethernet ${dv.suggestion} con máscara 255.255.255.0.`, tone: 'is-warn' };
-    }
-    return { text: 'Esperando que el PC500 transmita a esta Mac.', tone: '' };
-  }
   if (!dv.key) return { text: 'Ningún destino de STREAM usa el servidor interno del PC500. En su panel, elige "Default" en uno de los destinos.', tone: 'is-warn' };
-  if (!dv.route) return { text: 'Falta la IP del PC500. Conéctalo una vez por USB o escribe su IP.', tone: 'is-warn' };
+  if (!dv.route) return { text: 'Falta la IP del PC500: búscalo en la red.', tone: 'is-warn' };
   if (dv.route === 'ip') {
-    const network = adb?.network;
-    if (network?.state === 'connecting') return { text: 'Abriendo el video por el cable de red (adb)…', tone: '' };
-    const why = network?.state === 'error' || network?.state === 'unauthorized' ? `${network.message} ` : '';
-    return { text: `${why}La Mac no está en la red del PC500 (${dv.deviceIp}): conecta el USB o pon en el Ethernet de la Mac la IP ${dv.suggestion} con máscara 255.255.255.0.`, tone: 'is-warn' };
+    if (adb?.state === 'connecting') return { text: 'Abriendo el video por el cable de red…', tone: '' };
+    const why = adb?.state === 'error' || adb?.state === 'unauthorized' || adb?.state === 'no-adb' ? `${adb.message} ` : '';
+    return { text: `${why}La Mac no llega al video del PC500 (${dv.deviceIp}). Pon en el Ethernet de la Mac la IP ${dv.suggestion} con máscara 255.255.255.0.`, tone: 'is-warn' };
   }
   if (!dv.streaming) {
     if (dv.canStart) return { text: 'STREAM está apagado. Enciéndelo para ver el video aquí: va al servidor interno del PC500 y no sale al aire.', tone: '' };
@@ -524,56 +516,27 @@ function videoStatusText(settings, video, dv, adb) {
 }
 
 function renderDevice(sw, settings, extras) {
-  const connected = sw.connection === 'usb' || sw.connection === 'ethernet';
-  els.factConnection.textContent = connected ? sw.endpoint : 'Sin conexión';
-  els.factLatency.textContent = connected && Number.isFinite(sw.latencyMs) ? `${sw.latencyMs} ms` : '—';
-  els.factIp.textContent = sw.device?.ip || (isIPv6(settings.ethernetIp) ? 'IPv6 directo' : settings.ethernetIp) || '—';
-  els.factVersion.textContent = sw.device?.version || '—';
-  els.streamTime.textContent = sw.device?.streamTime || '—';
-  els.recordTime.textContent = sw.device?.recordTime || '—';
+  const connected = sw.connection === 'ethernet';
+  setText(els.factConnection, connected ? sw.endpoint : 'Sin conexión');
+  setText(els.factLatency, connected && Number.isFinite(sw.latencyMs) ? `${sw.latencyMs} ms` : '—');
+  setText(els.factIp, sw.device?.ip || (isIPv6(settings.ethernetIp) ? 'IPv6 directo' : settings.ethernetIp) || '—');
+  setText(els.factVersion, sw.device?.version || '—');
+  setText(els.streamTime, sw.device?.streamTime || '—');
+  setText(els.recordTime, sw.device?.recordTime || '—');
 
-  if (document.activeElement !== els.videoSource) els.videoSource.value = settings.videoSource;
-  els.cameraField.hidden = settings.videoSource !== 'usb';
-  const network = settings.videoSource === 'push' || settings.videoSource === 'pull';
-  const canControl = network && backend.kind === 'electron';
   const dv = extras?.deviceVideo;
-  const video = extras?.video;
-  els.videoActions.hidden = !canControl;
+  setHidden(els.videoActions, backend.kind !== 'electron');
   els.startStream.disabled = !(dv?.connected && dv.canStart);
   els.stopStream.disabled = !(dv?.connected && dv.canStop);
-  const status = videoStatusText(settings, video, dv, extras?.adb);
-  els.videoStatus.textContent = status.text;
-  els.videoStatus.className = `status-line ${status.tone}`.trim();
-
-  // pull: qué destino del equipo se lee. push: qué poner en el equipo.
-  let label = '';
-  let server = '';
-  let key = '';
-  if (settings.videoSource === 'pull' && dv?.key) {
-    label = 'Se lee el destino del servidor interno del PC500:';
-    server = `rtmp://${dv.deviceIp || '<IP del PC500>'}:1935/live/`;
-    key = dv.key;
-  } else if (settings.videoSource === 'push' && video?.rtmpUrls?.length) {
-    label = 'Pon en un destino de STREAM del PC500:';
-    server = video.rtmpUrls.join('  o  ');
-    key = settings.videoKey;
-  }
-  els.videoManual.hidden = !canControl || !server;
-  els.videoManualLabel.textContent = label;
-  els.videoServer.textContent = server;
-  els.videoKey.textContent = key;
+  const status = videoStatusText(extras?.video, dv, extras?.adb);
+  setText(els.videoStatus, status.text);
+  const className = `status-line ${status.tone}`.trim();
+  if (els.videoStatus.className !== className) els.videoStatus.className = className;
 }
 
 function renderDialog(sw, settings, extras) {
   if (!els.dialog.open) return;
-  for (const button of els.connMode.querySelectorAll('[data-mode]')) {
-    button.setAttribute('aria-checked', String(button.dataset.mode === settings.connectionMode));
-  }
-  els.adbText.textContent = [adbSummary(extras?.adb), adbNetworkSummary(extras?.adb)].filter(Boolean).join(' ');
-  els.ipHint.textContent =
-    settings.ethernetIpSource === 'auto' && settings.ethernetIp
-      ? `IP informada por el equipo: ${settings.ethernetIp}. Sirve para seguir por red si se desconecta el USB.`
-      : '';
+  setText(els.adbText, videoRouteSummary(extras?.adb));
   renderDiscovery(extras?.discovery);
 }
 
@@ -697,7 +660,7 @@ async function openOriginalPanel() {
   if (backend.kind === 'browser') {
     const ip = (snapshot?.settings.ethernetIp || '').trim();
     const host = ip.includes(':') ? `[${ip}]` : ip;
-    window.open(ip ? `http://${host}/` : 'http://127.0.0.1:8080/', '_blank', 'noopener');
+    if (ip) window.open(`http://${host}/`, '_blank', 'noopener');
     return;
   }
   const response = await backend.send('openOriginalPanel');
@@ -714,7 +677,7 @@ async function useDiscoveredIp(ip) {
 
 const ACTIONS = {
   'pgm-select': (t) => send('switchLive', t.dataset.cam),
-  'pvw-select': (t) => send('selectPreview', t.dataset.cam),
+  'pvw-select': (t) => selectPreview(t.dataset.cam),
   cut: () => send('cut'),
   auto: () => send('auto'),
   ftb: () => send('ftb'),
@@ -728,9 +691,8 @@ const ACTIONS = {
   tab: (t) => selectTab(t.dataset.tab),
   'open-settings': () => openSettings(),
   'close-settings': () => els.dialog.close(),
-  'auto-usb': () => send('retryHardware'),
+  reconnect: () => send('retryHardware'),
   'open-panel': () => openOriginalPanel(),
-  'conn-mode': (t) => send('setConnectionMode', t.dataset.mode),
   discover: () => send('discoverDevices'),
   'use-ip': (t) => useDiscoveredIp(t.dataset.ip),
   'start-device-stream': async () => {
@@ -753,7 +715,7 @@ function onKeyDown(event) {
   if (els.dialog.open || event.metaKey || event.ctrlKey || event.altKey) return;
   if (event.target.closest('input, select, textarea')) return;
   const cam = { 1: '1', 2: '2', 3: '3', 4: '4', 5: 'aux' }[event.key];
-  if (cam) send('selectPreview', cam);
+  if (cam) selectPreview(cam);
 }
 
 // --- Arranque ---
@@ -766,12 +728,6 @@ setupTbar();
 document.addEventListener('click', onClick);
 document.addEventListener('keydown', onKeyDown);
 els.form.addEventListener('submit', saveSettings);
-els.videoSource.addEventListener('change', async () => {
-  const source = els.videoSource.value;
-  await send('setVideoSource', source, source === 'usb' ? els.videoCamera.value : undefined);
-  if (source === 'usb') refreshCameras();
-});
-els.videoCamera.addEventListener('change', () => send('setVideoSource', 'usb', els.videoCamera.value));
 
 try {
   const saved = localStorage.getItem(TAB_KEY);
@@ -786,5 +742,4 @@ backend.onState((next) => {
 });
 snapshot = await backend.getState();
 render();
-if (snapshot.settings.videoSource === 'usb') refreshCameras();
 document.documentElement.dataset.ready = 'true';

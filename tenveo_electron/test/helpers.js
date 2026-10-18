@@ -1,3 +1,5 @@
+import { TenveoService } from '../src/core/tenveo-service.js';
+
 // Espera a que el estado de un servicio cumpla una condición.
 export function waitFor(service, predicate, timeoutMs = 3000) {
   return new Promise((resolve, reject) => {
@@ -30,4 +32,11 @@ export async function until(check, timeoutMs = 3000) {
     if (Date.now() > deadline) throw new Error('Tiempo agotado esperando la condición');
     await sleep(10);
   }
+}
+
+// Servicio del PC500 apuntando por red a un simulador en 127.0.0.1.
+export function serviceFor(mock, options = {}) {
+  const service = new TenveoService({ ethernetPort: mock.port, ...options });
+  service.setEthernetIp('127.0.0.1');
+  return service;
 }
