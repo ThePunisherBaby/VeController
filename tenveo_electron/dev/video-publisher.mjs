@@ -39,6 +39,11 @@ function videoPacket(dts, body) {
   return { codec_type: 9, codec_id: 7, dts, pts: dts, size: body.length, data: body, flags: 0, duration: 0, offset: 0 };
 }
 
+// Si el servidor RTMP se cierra antes que el emisor, mandar un cuadro lanza un
+// error, y un error sin atrapar en el proceso principal abre un diálogo modal
+// que deja el proceso colgado. El emisor sale solo en esos casos.
+process.on('SIGTERM', () => app.exit(0));
+
 app.whenReady().then(async () => {
   let client;
   try {
@@ -49,6 +54,15 @@ app.whenReady().then(async () => {
     return;
   }
   console.log(`[emisor] publicando en ${url}`);
+  client.onCloseCallback = () => app.exit(0);
+  client.onErrorCallback = () => app.exit(0);
+  const send = (packet) => {
+    try {
+      client.sendPacket(packet);
+    } catch {
+      app.exit(0);
+    }
+  };
 
   let sentHeader = false;
   let frames = 0;
@@ -56,12 +70,12 @@ app.whenReady().then(async () => {
     if (!sentHeader) {
       if (!chunk.description || !chunk.key) return;
       const header = Buffer.concat([Buffer.from([0x17, 0x00, 0, 0, 0]), Buffer.from(chunk.description)]);
-      client.sendPacket(videoPacket(0, header));
+      send(videoPacket(0, header));
       sentHeader = true;
     }
     const dts = Math.round(chunk.timestamp);
     const body = Buffer.concat([Buffer.from([chunk.key ? 0x17 : 0x27, 0x01, 0, 0, 0]), Buffer.from(chunk.data)]);
-    client.sendPacket(videoPacket(dts, body));
+    send(videoPacket(dts, body));
     frames += 1;
     if (frames === 1 || frames % 90 === 0) console.log(`[emisor] ${frames} cuadros enviados`);
   });
