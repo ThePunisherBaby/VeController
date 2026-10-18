@@ -17,6 +17,7 @@
 //   TENVEO_SMOKE_WAIT_VIDEO=1  espera a que el monitor PGM muestre video antes de la captura
 //   TENVEO_SMOKE_VIDEO_TIMEOUT_MS  cuánto esperar ese video (por defecto 15000)
 //   TENVEO_SMOKE_STOP_STREAM=1 al terminar, apaga STREAM si ningún destino sale a internet
+//   TENVEO_SMOKE_SIZE     tamaño de la ventana en las capturas, por ejemplo 1180x740
 
 import { app, BrowserWindow, ipcMain, net, protocol, safeStorage, session, shell } from 'electron';
 import fs from 'node:fs/promises';
@@ -331,9 +332,10 @@ function registerPermissions() {
 
 function createWindow() {
   const smoke = Boolean(env.TENVEO_SMOKE_SHOT);
+  const [smokeWidth, smokeHeight] = String(env.TENVEO_SMOKE_SIZE || '').split('x').map(Number);
   const win = new BrowserWindow({
-    width: 1440,
-    height: 900,
+    width: smoke && smokeWidth ? smokeWidth : 1440,
+    height: smoke && smokeHeight ? smokeHeight : 900,
     minWidth: 1180,
     minHeight: 740,
     backgroundColor: '#0b0c0f',

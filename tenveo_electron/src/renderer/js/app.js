@@ -100,7 +100,7 @@ const camLabel = (id) => {
   const cam = camById.get(String(id));
   return cam ? `${cam.name} · ${cam.sub}` : `CAM ${id}`;
 };
-const camName = (id) => (id ? (camById.get(String(id))?.name ?? `CAM ${id}`) : '—');
+const camName = (id) => (id ? (camById.get(String(id))?.name ?? `CAM ${id}`) : '');
 
 // --- Comandos y avisos ---
 
@@ -365,6 +365,7 @@ function connectionText(sw) {
 function renderTopbar(sw, obs, settings, extras) {
   const connected = sw.connection === 'ethernet';
   els.hw.classList.toggle('is-on', connected);
+  if (document.documentElement.dataset.connected !== String(connected)) document.documentElement.dataset.connected = String(connected);
   setText(els.hwText, connectionText(sw));
   setText(els.hwLatency, connected && Number.isFinite(sw.latencyMs) ? `${sw.latencyMs} ms` : '');
   els.hw.title = [connected ? sw.endpoint : sw.lastError, videoRouteSummary(extras?.adb)].filter(Boolean).join('\n');
@@ -407,9 +408,11 @@ function renderStage(sw) {
   const pvw = camById.get(pvwId);
   const pgm = camById.get(sw.pgm);
   setText(els.pvwCam, camName(pvwId));
+  setHidden(els.pvwCam, !pvwId);
   setText(els.pvwSub, pvw?.sub ?? '');
   setText(els.pvwLabel, camLabel(pvwId));
   setText(els.pgmCam, camName(sw.pgm));
+  setHidden(els.pgmCam, !sw.pgm);
   setText(els.pgmSub, pgm?.sub ?? '');
   setText(els.pgmLabel, camLabel(sw.pgm));
   setHidden(els.pgmBlack, !sw.ftb);

@@ -270,33 +270,49 @@ button.pill:hover {
   padding: 14px;
 }
 
+/* Los monitores se dimensionan por su ancho y la consola se queda con el resto
+   de la altura: así no quedan franjas vacías. */
 .stage {
   min-height: 0;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 14px;
 }
 
+/* El PGM, que lleva el video, ocupa dos tercios en 16:9. El PVW no lleva video
+   (muestra qué cámara está en Preview), así que es una tarjeta de la misma
+   altura y los rótulos quedan en la misma línea. */
 .monitors {
-  min-height: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  align-items: stretch;
   gap: 14px;
 }
 
-/* Cada monitor ocupa el mayor 16:9 que entra en su espacio, con su rótulo
-   pegado debajo. */
 .monitor {
-  min-height: 0;
+  min-width: 0;
   display: flex;
-  align-items: center;
   justify-content: center;
   margin: 0;
-  container-type: size;
+}
+
+/* En una ventana muy baja y ancha, el 16:9 se limita por la altura y deja lugar
+   para la consola (≈ 100vh menos barra, márgenes, consola mínima y rótulo). */
+.monitor--pgm .monitor-inner {
+  width: min(100%, calc((100vh - 400px) * 16 / 9));
+}
+
+.monitor--pvw .monitor-inner {
+  width: 100%;
+}
+
+.monitor--pvw .screen {
+  flex: 1;
+  aspect-ratio: auto;
 }
 
 .monitor-inner {
-  width: min(100cqw, calc((100cqh - 30px) * 16 / 9));
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -423,6 +439,7 @@ figcaption {
 /* --- Consola --- */
 
 .console {
+  min-height: 0;
   display: flex;
   gap: 18px;
   padding: 16px;
@@ -431,11 +448,13 @@ figcaption {
   background: var(--panel);
 }
 
+/* La altura que sobra se reparte entre las filas. */
 .rows {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  justify-content: space-evenly;
   gap: 12px;
 }
 
@@ -456,9 +475,32 @@ figcaption {
 }
 
 .keyer-rows {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* Cámaras y capas comparten una grilla de 7 columnas: las teclas llenan el
+   ancho y quedan alineadas entre filas (las cámaras usan 5). */
+.rows .keys {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.rows .key {
+  width: auto;
+  min-width: 0;
+  height: clamp(52px, 6.6vh, 68px);
+}
+
+.rows .keys--small .key {
+  width: auto;
+  height: clamp(40px, 5.2vh, 54px);
 }
 
 .row-label {
@@ -491,6 +533,18 @@ figcaption {
   gap: 8px;
 }
 
+.keys--grid.keys--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* Sin conexión con el PC500 los controles quedan atenuados: se ven, pero
+   está claro que ahora no mandan nada. */
+html[data-connected="false"] .console,
+html[data-connected="false"] .mixer,
+html[data-connected="false"] .panel[data-panel="device"] .keys {
+  opacity: 0.45;
+}
+
 .key {
   display: flex;
   flex-direction: column;
@@ -520,10 +574,14 @@ figcaption {
 }
 
 .key-sub {
+  max-width: 100%;
+  overflow: hidden;
   color: var(--text-3);
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .keys--small .key {
@@ -799,12 +857,12 @@ figcaption {
   min-height: 0;
   display: flex;
   gap: 6px;
-  overflow-x: auto;
-  overflow-y: hidden;
 }
 
+/* Las tiras se reparten el ancho: entran todas aunque la ventana sea chica. */
 .strip {
-  flex: 1 0 50px;
+  flex: 1 1 0;
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -817,7 +875,7 @@ figcaption {
 }
 
 .strip--master {
-  flex-basis: 62px;
+  flex-grow: 1.15;
   border-color: rgba(191, 90, 242, 0.35);
 }
 
@@ -1150,8 +1208,11 @@ code {
   background: var(--raised-2);
 }
 
-.btn:disabled {
-  opacity: 0.5;
+.btn:disabled,
+.btn--primary:disabled {
+  border-color: var(--line);
+  background: var(--raised);
+  color: var(--text-3);
   cursor: default;
 }
 
@@ -1229,10 +1290,11 @@ code {
   font-size: 12px;
 }
 
+/* Arriba, sobre los monitores: nunca tapa un control. */
 .toast {
   position: fixed;
   left: 50%;
-  bottom: 22px;
+  top: 64px;
   max-width: min(70vw, 560px);
   padding: 10px 14px;
   border: 1px solid var(--line-strong);

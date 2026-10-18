@@ -33,7 +33,7 @@ export const AUDIO_CHANNELS = Object.freeze([
   Object.freeze({ id: 'in3', name: 'IN 3', switchType: 'mode', defaultDb: -6 }),
   Object.freeze({ id: 'in4', name: 'IN 4', switchType: 'mode', defaultDb: -6 }),
   Object.freeze({ id: 'mic1', name: 'MIC 1', switchType: 'on', defaultDb: 0 }),
-  Object.freeze({ id: 'pgm', name: 'PGM OUT', switchType: 'on', defaultDb: -6, master: true }),
+  Object.freeze({ id: 'pgm', name: 'PGM', switchType: 'on', defaultDb: -6, master: true }),
 ]);
 
 // Resto de botones del panel principal (layout_window en pc.html). Todos se

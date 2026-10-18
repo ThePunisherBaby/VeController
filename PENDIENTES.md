@@ -16,7 +16,7 @@ Este documento detalla el estado actual del proyecto, las funciones implementada
 - [x] **Conmutación básica en vivo:** Selección de cámaras (1, 2, 3, 4, AUX) en Preview, transiciones CUT, AUTO y FTB (Fade to Black).
 - [x] **Sincronización bidireccional:** Cambios reflejados en LEDs físicos y en la interfaz en tiempo real.
 - [x] **Migración a Electron:** Consola completa en [`tenveo_electron/`](tenveo_electron/).
-- [x] **Interfaz minimalista (1.1.0):** Monitores 16:9, consola con capas, barra lateral con pestañas de Audio, OBS y Equipo.
+- [x] **Interfaz minimalista:** PGM grande en 16:9 y PVW como tarjeta, consola en grilla que llena el ancho, barra lateral con pestañas de Audio, OBS y Equipo. Revisada con capturas en cada estado y en el tamaño mínimo (`scripts/screenshots.mjs`).
 - [x] **Comunicación por red optimizada:** una sola ruta por red; búsqueda automática del PC500 (IPv4 e IPv6); latido cada segundo con latencia visible; corte detectado en 3,5 s; reintentos de 250 ms a 2 s. **Probado con el PC500 real** por cable directo, con mediciones contra la 1.0.0 (DOCUMENTACION.md, sección 8).
 - [x] **Cable directo PC500 ↔ Mac:** control por IPv6 de enlace local y video por adb en red, sin configurar la red de la Mac. **Probado con el PC500 real.**
 - [x] **Fluidez (1.3.0):** GPU recuperada (Electron 43), monitor PGM en un worker con WebCodecs, interfaz que solo toca el DOM donde algo cambió, Preview marcado en el mismo cuadro del clic. Medido con `bench-video` (DOCUMENTACION.md, sección 8).
@@ -25,7 +25,7 @@ Este documento detalla el estado actual del proyecto, las funciones implementada
 - [x] **Integración OBS Studio (v5):** Stream, Grabación, Cámara Virtual, escenas y sincronización automática, con contraseña.
 - [x] **Compilación sin Xcode:** App de Mac universal (Intel y Apple Silicon) en `.dmg` y `.zip` con `npm run dist`; versión web con modo demo.
 - [x] **Plug & Play:** la app busca sola el PC500 en la red e incluye `adb` para el video por cable directo.
-- [x] **Pruebas automáticas:** 90 pruebas del protocolo, la red, IPv6, OBS, la búsqueda, el video, adb, la configuración y la sintaxis, más pruebas de humo de la app, la versión web, el modo demo y el video con STREAM. Diagnóstico (`check-device`) y mediciones (`bench-network`, `bench-video`) con el equipo real.
+- [x] **Pruebas automáticas:** 91 pruebas del protocolo, la red, IPv6, OBS, la búsqueda, el video, adb, la configuración y la sintaxis, más pruebas de humo de la app, la versión web, el modo demo y el video con STREAM. Diagnóstico (`check-device`) y mediciones (`bench-network`, `bench-video`) con el equipo real.
 
 ---
 

@@ -60,8 +60,8 @@
               <div class="screen">
                 <div class="placeholder">
                   <svg class="placeholder-icon"><use href="#i-camera"/></svg>
-                  <span class="placeholder-cam" id="pvw-cam">CAM 2</span>
-                  <span class="placeholder-sub" id="pvw-sub">HDMI 2</span>
+                  <span class="placeholder-cam" id="pvw-cam" hidden></span>
+                  <span class="placeholder-sub" id="pvw-sub"></span>
                 </div>
               </div>
               <figcaption><span class="tally-tag tally-tag--pvw">PVW</span><span id="pvw-label">CAM 2 · HDMI 2</span></figcaption>
@@ -73,8 +73,8 @@
                 <canvas id="pgm-canvas" width="1920" height="1080" hidden></canvas>
                 <div class="placeholder" id="pgm-placeholder">
                   <svg class="placeholder-icon"><use href="#i-camera"/></svg>
-                  <span class="placeholder-cam" id="pgm-cam">CAM 1</span>
-                  <span class="placeholder-sub" id="pgm-sub">HDMI 1</span>
+                  <span class="placeholder-cam" id="pgm-cam" hidden></span>
+                  <span class="placeholder-sub" id="pgm-sub"></span>
                   <span class="placeholder-hint" id="pgm-hint">Esperando el PC500…</span>
                 </div>
                 <span class="screen-badge" id="video-badge" hidden></span>
@@ -156,7 +156,7 @@
           </div>
           <div class="section">
             <span class="section-label">Transmisión y grabación del equipo</span>
-            <div class="keys keys--grid" id="device-main"></div>
+            <div class="keys keys--grid keys--4" id="device-main"></div>
             <div class="timers">
               <span>Stream <b id="stream-time">—</b></span>
               <span>Rec <b id="record-time">—</b></span>
