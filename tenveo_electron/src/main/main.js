@@ -1,14 +1,15 @@
 // Proceso principal de Tenveo Studio.
 //
 // Todo va por red: el WebSocket del PC500 (IPv4 o IPv6 de enlace local por
-// cable directo), el WebSocket de OBS, la búsqueda en la red local y el video,
+// cable directo), la búsqueda en la red local y el video,
 // que la app toma del servidor interno del PC500 (directo o por adb en red).
-// La ventana solo dibuja la consola y manda comandos por IPC.
+// La ventana dibuja la consola y el estudio de producción y manda comandos por
+// IPC. Aquí se guardan las escenas y sus imágenes y videos, y se dan los
+// permisos de cámara y de captura de pantalla, solo a la propia ventana.
 //
 // Variables de entorno para desarrollo y pruebas:
 //   TENVEO_ETHERNET_IP    IP del PC500 al arrancar (también fe80::…%en0)
 //   TENVEO_PC500_PORT     puerto del WebSocket del PC500 (por defecto 8089)
-//   TENVEO_OBS_HOST, TENVEO_OBS_PORT, TENVEO_OBS_PASSWORD
 //   TENVEO_DISABLE_ADB=1  no usar adb en red para el video
 //   TENVEO_USER_DATA      carpeta de datos alternativa
 //   TENVEO_DEVICE_RTMP_PORT  puerto del servidor RTMP del PC500 por IPv4 (pruebas; 1935)
@@ -21,18 +22,35 @@
 //   TENVEO_SMOKE_MEDIA    preferencias del sistema simuladas en las capturas, por ejemplo
 //                         prefers-contrast:more,prefers-reduced-transparency:reduce
 //   TENVEO_SMOKE_EVAL     código que corre en la ventana después de los clics (capturas)
+//   TENVEO_HIDE_WINDOW=1  la ventana no se muestra (pruebas que no deben molestar en la pantalla)
+//   TENVEO_FAKE_MEDIA=1   cámara falsa de Chromium en vez de las de la Mac (pruebas; no pide permiso)
 
-import { app, BrowserWindow, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, session, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  desktopCapturer,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeTheme,
+  net,
+  protocol,
+  safeStorage,
+  session,
+  shell,
+  systemPreferences,
+} from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { ObsService } from '../core/obs-service.js';
 import { deviceVideoPlan, isIPv4 } from '../core/pc500-protocol.js';
 import { StudioController } from '../core/studio-controller.js';
 import { TenveoService, hostForUrl, isLinkLocal } from '../core/tenveo-service.js';
 import { AdbBridge, RTMP_FORWARD_PORT } from './adb-bridge.js';
 import { addressFacing, discoverPc500, localIPv4Networks } from './lan-discovery.js';
+import { mediaResponse } from './media-response.js';
 import { LowLatencyWebSocket } from './net-websocket.js';
+import { MEDIA_FILTERS, ProductionStore } from './production-store.js';
 import { SettingsStore } from './settings-store.js';
 import { VideoReceiver } from './video-receiver.js';
 
@@ -48,6 +66,14 @@ const DEFAULT_DEVICE_IP = '192.168.1.188';
 
 if (env.TENVEO_USER_DATA) app.setPath('userData', env.TENVEO_USER_DATA);
 
+// Una app de transmisión no se frena en segundo plano. Medido: con la ventana
+// tapada, oculta o minimizada, Chromium pausa los videos sin audio y deja de
+// dibujar. Así el video del PC500 y el compositor siguen igual.
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-background-media-suspend');
+if (env.TENVEO_FAKE_MEDIA === '1') app.commandLine.appendSwitch('use-fake-device-for-media-stream');
+
 protocol.registerSchemesAsPrivileged([
   { scheme: SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
 ]);
@@ -57,6 +83,7 @@ let controller = null;
 let tenveo = null;
 let adb = null;
 let receiver = null;
+let production = null;
 let discovering = false;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -286,6 +313,111 @@ async function openOriginalPanel() {
   return { ok: true, result: url };
 }
 
+// --- Estudio de producción ---
+
+async function getProduction() {
+  return { ok: true, result: await production.load() };
+}
+
+async function saveProduction(doc) {
+  const { done } = production.save(doc);
+  await done;
+  return { ok: true, result: true };
+}
+
+// Imagen… o Video… del menú Agregar: el archivo se copia a la carpeta de la app.
+async function importMedia(kind) {
+  if (!Object.hasOwn(MEDIA_FILTERS, kind)) return { ok: false, error: 'Tipo de archivo desconocido.' };
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: kind === 'image' ? 'Elegir una imagen' : 'Elegir un video',
+    buttonLabel: 'Agregar',
+    properties: ['openFile'],
+    filters: MEDIA_FILTERS[kind],
+  });
+  if (canceled || !filePaths[0]) return { ok: true, result: null };
+  return { ok: true, result: await production.importMedia(filePaths[0], kind) };
+}
+
+// Un archivo arrastrado desde el Finder a la salida.
+async function importMediaPath(file) {
+  if (typeof file !== 'string' || !path.isAbsolute(file)) return { ok: false, error: 'Ese archivo no se puede usar.' };
+  return { ok: true, result: await production.importMedia(file) };
+}
+
+// Pantallas y ventanas para el selector, con miniaturas. La propia ventana no
+// aparece: capturarla mostraría la salida dentro de sí misma.
+async function listCaptureSources() {
+  const status = process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('screen') : 'granted';
+  const own = mainWindow && !mainWindow.isDestroyed() ? mainWindow.getMediaSourceId() : '';
+  const sources = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: true });
+  const list = sources
+    .filter((source) => source.id !== own)
+    .map((source) => ({
+      id: source.id,
+      name: source.name,
+      kind: source.id.startsWith('screen:') ? 'screen' : 'window',
+      thumbnail: source.thumbnail && !source.thumbnail.isEmpty() ? source.thumbnail.toDataURL() : '',
+      icon: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.toDataURL() : '',
+    }));
+  return { ok: true, result: { status, sources: list } };
+}
+
+// Permiso de macOS para la cámara o la pantalla. La cámara se puede pedir; la
+// pantalla solo se habilita en Ajustes del Sistema.
+const PRIVACY_PANES = { camera: 'Privacy_Camera', microphone: 'Privacy_Microphone', screen: 'Privacy_ScreenCapture' };
+
+async function mediaAccess(kind, ask = false) {
+  if (!Object.hasOwn(PRIVACY_PANES, kind)) return { ok: false, error: 'Permiso desconocido.' };
+  if (process.platform !== 'darwin') return { ok: true, result: 'granted' };
+  let status = systemPreferences.getMediaAccessStatus(kind);
+  if (ask === true && status === 'not-determined' && kind !== 'screen') {
+    status = (await systemPreferences.askForMediaAccess(kind)) ? 'granted' : 'denied';
+  }
+  return { ok: true, result: status };
+}
+
+async function openPrivacySettings(kind) {
+  if (!Object.hasOwn(PRIVACY_PANES, kind)) return { ok: false, error: 'Permiso desconocido.' };
+  await shell.openExternal(`x-apple.systempreferences:com.apple.preference.security?${PRIVACY_PANES[kind]}`);
+  return { ok: true, result: true };
+}
+
+// Menú contextual nativo (clic derecho, o el botón Agregar). Devuelve el id
+// del ítem elegido, o null si se cerró sin elegir.
+function menuTemplate(items, depth, choose) {
+  if (!Array.isArray(items)) return [];
+  return items.slice(0, 40).map((item) => {
+    if (item?.type === 'separator') return { type: 'separator' };
+    const entry = { label: String(item?.label ?? '').slice(0, 80), enabled: item?.enabled !== false };
+    if (Array.isArray(item?.submenu) && depth < 2) entry.submenu = menuTemplate(item.submenu, depth + 1, choose);
+    else {
+      if (typeof item?.checked === 'boolean') {
+        entry.type = 'checkbox';
+        entry.checked = item.checked;
+      }
+      entry.click = () => choose(String(item?.id ?? ''));
+    }
+    return entry;
+  });
+}
+
+function popupMenu({ items, x, y } = {}) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const choose = (id) => {
+      if (settled) return;
+      settled = true;
+      resolve({ ok: true, result: id });
+    };
+    const menu = Menu.buildFromTemplate(menuTemplate(items, 0, choose));
+    // La ventana manda píxeles CSS; con zoom, la Mac los quiere en puntos.
+    const zoom = mainWindow?.webContents.getZoomFactor() ?? 1;
+    const at = Number.isFinite(x) && Number.isFinite(y) ? { x: Math.round(x * zoom), y: Math.round(y * zoom) } : {};
+    // El clic llega justo después de cerrarse el menú: se le da un instante.
+    menu.popup({ window: mainWindow, ...at, callback: () => setTimeout(() => choose(null), 60) });
+  });
+}
+
 // --- IPC y estado ---
 
 let pushScheduled = false;
@@ -305,6 +437,14 @@ const MAIN_COMMANDS = {
   discoverDevices: () => discoverDevices(),
   startDeviceStream,
   stopDeviceStream: async () => stopDeviceStream(),
+  getProduction,
+  saveProduction,
+  importMedia,
+  importMediaPath,
+  listCaptureSources,
+  mediaAccess,
+  openPrivacySettings,
+  popupMenu,
 };
 
 function registerIpc() {
@@ -326,11 +466,21 @@ function registerIpc() {
   });
 }
 
-// La app no usa cámara, micrófono ni otros permisos del sistema.
+// Solo la propia ventana puede usar la cámara y capturar la pantalla (fuentes
+// del estudio). Todo lo demás se rechaza: micrófono, ubicación, avisos, etc.
+function fromAppWindow(webContents, url) {
+  return Boolean(mainWindow && !mainWindow.isDestroyed() && webContents === mainWindow.webContents && String(url ?? '').startsWith(`${SCHEME}://${HOST}`));
+}
+
 function registerPermissions() {
   const ses = session.defaultSession;
-  ses.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
-  ses.setPermissionCheckHandler(() => false);
+  ses.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    const video = permission === 'media' && (details.mediaTypes ?? []).length > 0 && details.mediaTypes.every((type) => type === 'video');
+    callback(video && fromAppWindow(webContents, details.requestingUrl));
+  });
+  ses.setPermissionCheckHandler((webContents, permission, origin, details) => {
+    return permission === 'media' && details?.mediaType !== 'audio' && fromAppWindow(webContents, origin);
+  });
 }
 
 // Menú de la Mac en español, como el de una app nativa: Ajustes… con ⌘,,
@@ -342,7 +492,7 @@ function buildMenu() {
     applicationName: name,
     applicationVersion: app.getVersion(),
     version: '',
-    copyright: 'Consola para el switcher Tenveo PC500 y OBS Studio.',
+    copyright: 'Consola y estudio de producción para el switcher Tenveo PC500.',
   });
   const send = (action) => () => mainWindow?.webContents.send('tenveo:menu', action);
   const template = [
@@ -377,6 +527,9 @@ function buildMenu() {
     {
       label: 'Visualización',
       submenu: [
+        { label: 'Consola', accelerator: 'Command+1', click: send('view-console') },
+        { label: 'Producción', accelerator: 'Command+2', click: send('view-studio') },
+        { type: 'separator' },
         { role: 'resetZoom', label: 'Tamaño real' },
         { role: 'zoomIn', label: 'Ampliar' },
         { role: 'zoomOut', label: 'Reducir' },
@@ -444,6 +597,9 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       spellcheck: false,
+      // Ver los interruptores del principio: nada se frena en segundo plano.
+      backgroundThrottling: false,
+      autoplayPolicy: 'no-user-gesture-required',
     },
   });
 
@@ -451,10 +607,20 @@ function createWindow() {
   win.webContents.on('will-navigate', (event, url) => {
     if (!isAppUrl(url)) event.preventDefault();
   });
-  if (!smoke) win.once('ready-to-show', () => win.show());
-  // En pantalla completa no hay semáforos: la barra recupera ese espacio.
-  win.on('enter-full-screen', () => controller.setExtra('window', { fullscreen: true }));
-  win.on('leave-full-screen', () => controller.setExtra('window', { fullscreen: false }));
+  if (!smoke && env.TENVEO_HIDE_WINDOW !== '1') win.once('ready-to-show', () => win.show());
+  // En pantalla completa no hay semáforos: la barra recupera ese espacio. Con
+  // la ventana minimizada u oculta, la ventana deja de dibujar lo que no se ve.
+  const windowState = { fullscreen: false, hidden: false };
+  const setWindow = (patch) => {
+    Object.assign(windowState, patch);
+    controller.setExtra('window', { ...windowState });
+  };
+  win.on('enter-full-screen', () => setWindow({ fullscreen: true }));
+  win.on('leave-full-screen', () => setWindow({ fullscreen: false }));
+  win.on('minimize', () => setWindow({ hidden: true }));
+  win.on('restore', () => setWindow({ hidden: false }));
+  win.on('hide', () => setWindow({ hidden: true }));
+  win.on('show', () => setWindow({ hidden: false }));
   win.on('closed', () => {
     mainWindow = null;
   });
@@ -487,9 +653,7 @@ async function runSmoke(win) {
     const start = Date.now();
     while (Date.now() - start < waitMs) {
       const s = controller.snapshot();
-      const hardware = s.switcher.connection === 'ethernet';
-      const obs = s.obs.status === 'connected' && s.obs.scenes.length > 0;
-      if (hardware && obs) break;
+      if (s.switcher.connection === 'ethernet') break;
       await delay(150);
     }
     await delay(500);
@@ -516,8 +680,9 @@ async function runSmoke(win) {
       let playing = false;
       const videoTimeout = Number(env.TENVEO_SMOKE_VIDEO_TIMEOUT_MS || 15000);
       while (!playing && Date.now() - videoStart < videoTimeout) {
+        // En Producción el monitor PGM no dibuja: cuentan los cuadros que pasa al estudio.
         playing = await win.webContents.executeJavaScript(
-          `(() => { const s = globalThis.tenveoPgmStats; return Boolean(s && s.drawn > 10 && !document.getElementById('pgm-canvas').hidden); })()`,
+          `(() => { const s = globalThis.tenveoPgmStats; return Boolean(s && (s.drawn > 10 || s.forwarded > 10) && !document.getElementById('pgm-canvas').hidden); })()`,
         );
         if (!playing) await delay(200);
       }
@@ -551,7 +716,14 @@ async function runSmoke(win) {
 async function bootstrap() {
   await app.whenReady();
 
+  production = new ProductionStore(app.getPath('userData'));
   protocol.handle(SCHEME, (request) => {
+    // Imágenes y videos de la producción: app://tenveo/media/<huella>.<ext>
+    const url = new URL(request.url);
+    if (url.host === HOST && url.pathname.startsWith('/media/')) {
+      const media = production.resolveMedia(decodeURIComponent(url.pathname.slice('/media/'.length)));
+      return media ? mediaResponse(media, request.headers.get('range')) : new Response('No encontrado', { status: 404 });
+    }
     const file = resolveAppFile(request.url);
     if (!file) return new Response('No encontrado', { status: 404 });
     return net.fetch(pathToFileURL(file).toString());
@@ -562,9 +734,6 @@ async function bootstrap() {
   const saved = await store.load();
   const settings = { ...saved.settings };
   if (env.TENVEO_ETHERNET_IP) settings.ethernetIp = env.TENVEO_ETHERNET_IP;
-  if (env.TENVEO_OBS_HOST) settings.obsHost = env.TENVEO_OBS_HOST;
-  if (env.TENVEO_OBS_PORT) settings.obsPort = Number(env.TENVEO_OBS_PORT);
-  const obsPassword = env.TENVEO_OBS_PASSWORD ?? saved.obsPassword;
 
   const tenveoOptions = { WebSocketImpl: LowLatencyWebSocket };
   if (env.TENVEO_PC500_PORT) tenveoOptions.ethernetPort = Number(env.TENVEO_PC500_PORT);
@@ -573,11 +742,9 @@ async function bootstrap() {
   receiver = new VideoReceiver();
   controller = new StudioController({
     tenveo,
-    obs: new ObsService({ WebSocketImpl: LowLatencyWebSocket }),
     settings,
-    obsPassword,
-    persist: (next, password) => {
-      store.save(next, password).catch((error) => console.error('[Settings] No se pudo guardar:', error));
+    persist: (next) => {
+      store.save(next).catch((error) => console.error('[Settings] No se pudo guardar:', error));
     },
     extras: {
       platform: 'electron',

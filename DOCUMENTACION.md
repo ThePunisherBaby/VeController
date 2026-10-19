@@ -2,13 +2,13 @@
 
 ## 1. ¿Qué es esto?
 
-Es un conjunto de herramientas hechas a medida para **controlar desde la Mac el switcher de video Tenveo PC500** y combinarlo con **OBS Studio**.
+Es un conjunto de herramientas hechas a medida para **controlar desde la Mac el switcher de video Tenveo PC500** y **producir la transmisión desde la misma app**: un estudio con escenas y fuentes que reemplaza a OBS.
 
 El PC500 es un mezclador de video de 4 entradas con un sistema embebido (Linux). Trae su propio panel web (puerto 80), un servidor **WebSocket en el puerto 8089** ("T4 Server") que intercambia mensajes JSON, un servidor **RTMP (SRS 6.0) en el puerto 1935** para sus transmisiones y **adb por red en el puerto 5555**. Analizamos ese panel web (ingeniería inversa) para entender el protocolo, lo confirmamos con un PC500 real, y con eso construimos:
 
 | Componente | Qué hace |
 |---|---|
-| **App de Electron "Tenveo Studio"** (`tenveo_electron/`) | Consola tipo broadcast: PGM/PVW, CUT/AUTO/FTB, T-Bar, capas (PIP, DSK, LOGO), mezclador, transmisión y grabación del equipo, video en vivo en el monitor PGM y control de OBS. **Todo por la red.** **Es la versión principal.** |
+| **App de Electron "Tenveo Studio"** (`tenveo_electron/`) | Consola tipo broadcast: PGM/PVW, CUT/AUTO/FTB, T-Bar, capas (PIP, DSK, LOGO), mezclador, transmisión y grabación del equipo y video en vivo en el monitor PGM. **Estudio de producción** con escenas y fuentes: el programa del PC500, cámaras de la Mac, pantalla o ventana, imágenes, videos, textos y colores, con recorte y chroma key. **Todo por la red.** **Es la versión principal.** |
 | **Versión web** | La misma consola en el navegador, por la IP del PC500, con un modo demo para probarla sin el equipo |
 | **Scripts Python** | Control por línea de comandos y el puente USB de la app anterior |
 | **Launcher `start_app.sh`** | Abre la app de Electron, la versión web o la app anterior de Flutter |
@@ -26,16 +26,18 @@ flowchart LR
     PC500["Tenveo PC500<br/>WS :8089 · RTMP :1935 (SRS) · adb :5555"]
     subgraph APP["Tenveo Studio (Electron)"]
         MAIN["Proceso principal<br/>WebSockets · búsqueda · receptor RTMP · adb en red"]
-        UI["Ventana<br/>consola"]
+        UI["Ventana<br/>consola y Producción"]
         WORKER["Worker del monitor PGM<br/>WebCodecs + canvas"]
+        COMP["Compositor de Producción<br/>worker WebGL2"]
     end
-    OBS["OBS Studio<br/>WebSocket v5 :4455"]
+    MAC["Cámaras, pantalla,<br/>imágenes y videos de la Mac"]
 
     PC500 -- "Control: ws://IP:8089 (IPv4 o IPv6 de enlace local)" --> MAIN
     PC500 -- "Video: RTMP del servidor interno (IPv4 directo o adb en red)" --> MAIN
     MAIN -- "IPC" --> UI
     MAIN -- "FLV en 127.0.0.1" --> WORKER
-    MAIN -- "ws://127.0.0.1:4455" --> OBS
+    WORKER -- "copia de cada cuadro" --> COMP
+    MAC --> COMP
 ```
 
 **Todo va por la red**, sin USB ni modos que elegir:
@@ -44,7 +46,7 @@ flowchart LR
   - **Cable directo PC500 ↔ Mac:** sin router ni DHCP, la Mac y el PC500 no comparten red IPv4 (el PC500 de prueba tiene `192.168.0.177` fija y la Mac queda en `169.254.x.x`). Igual se hablan por **IPv6 de enlace local** (`fe80::…%en0`), que la búsqueda encuentra sola.
 - **Video:** la app lo toma del servidor RTMP interno del PC500 (ver 4.4). Si la Mac está en la misma red IPv4, directo; por cable directo, por adb en red.
 
-OBS sigue recibiendo el video del PC500 por su propia captura, como siempre.
+El estudio de producción usa ese mismo video del PC500, sin decodificarlo dos veces, y lo combina con las fuentes de la Mac (ver 4.5).
 
 ---
 
@@ -109,15 +111,15 @@ tenveo_electron/
 ├── package.json                    ← dependencias, scripts y configuración del empaquetado
 ├── DISENO.md                       ← sistema de diseño: tokens, capas, movimiento, accesibilidad y rendimiento
 ├── PLAN_DISENO.md                  ← plan de la revisión 1.5.0: auditoría contra el prompt de Apple y momento firma
+├── PLAN_PRODUCCION.md              ← plan del estudio de producción (reemplazo de OBS), por fases
 ├── build/icon.icns                 ← ícono de la app (npm run icon lo vuelve a dibujar)
 ├── src/
 │   ├── core/                       ← lógica compartida (Electron, navegador y pruebas)
 │   │   ├── pc500-protocol.js       ← claves del protocolo, lectura de estado y comandos
 │   │   ├── tenveo-service.js       ← WebSocket al PC500 por red: latido, latencia y reconexión
-│   │   ├── obs-service.js          ← cliente OBS WebSocket v5 con contraseña
-│   │   ├── obs-auth.js             ← cálculo de la contraseña de OBS (SHA-256)
-│   │   ├── studio-controller.js    ← comandos, SYNC OBS y configuración
-│   │   ├── simulators.js           ← simuladores del PC500 y de OBS (pruebas y modo demo)
+│   │   ├── production.js           ← modelo del estudio: escenas, fuentes, recorte, imán, validación
+│   │   ├── studio-controller.js    ← comandos del PC500 y configuración
+│   │   ├── simulators.js           ← simulador del PC500 (pruebas y modo demo)
 │   │   ├── simulated-websocket.js  ← WebSocket falso para el modo demo
 │   │   └── emitter.js              ← suscriptores de cambios
 │   ├── main/                       ← proceso principal de Electron
@@ -126,7 +128,9 @@ tenveo_electron/
 │   │   ├── lan-discovery.js        ← busca el PC500 en la red local (IPv4 e IPv6 de enlace local)
 │   │   ├── net-websocket.js        ← WebSocket sin compresión que acepta IPv6 con zona (fe80::…%en0)
 │   │   ├── video-receiver.js       ← lee el RTMP del PC500 y lo entrega como FLV local
-│   │   ├── settings-store.js       ← configuración; contraseña de OBS cifrada en el llavero
+│   │   ├── production-store.js     ← guarda la producción y copia sus imágenes y videos
+│   │   ├── media-response.js       ← sirve app://tenveo/media/ con pedidos por rangos
+│   │   ├── settings-store.js       ← configuración; claves cifradas en el llavero
 │   │   └── vendor/node-media-server/ ← piezas del protocolo RTMP (Apache 2.0)
 │   ├── preload/preload.cjs         ← puente seguro entre la ventana y el proceso principal
 │   └── renderer/                   ← la consola: HTML, CSS y JavaScript sin frameworks
@@ -137,7 +141,10 @@ tenveo_electron/
 │           ├── springs.js          ← física de springs de Apple (curvas CSS, la T-Bar y la banda elástica)
 │           ├── island.js           ← la isla: el estado de la barra que se transforma en los avisos
 │           ├── video.js            ← arranca el monitor PGM y muestra sus avisos
-│           ├── pgm-worker.js       ← monitor PGM: decodifica con WebCodecs y dibuja en un canvas
+│           ├── pgm-worker.js       ← monitor PGM: decodifica con WebCodecs, dibuja y pasa los cuadros al estudio
+│           ├── production-view.js  ← vista Producción: escenas, fuentes, manijas, propiedades, historial
+│           ├── production-engine.js ← enciende cámaras, pantallas, videos, imágenes y textos de la escena
+│           ├── production-worker.js ← compositor WebGL2: capas, recorte, opacidad, chroma key y fundidos
 │           ├── backend.js          ← elige Electron o navegador
 │           └── local-backend.js    ← modo navegador y modo demo
 ├── dev/                            ← simuladores por WebSocket, emisor de video y capturas (solo pruebas)
@@ -148,13 +155,13 @@ tenveo_electron/
 Patrón: **Servicios** (I/O de red) → **Controlador** (estado y lógica) → **Ventana** (dibujo). En Electron, servicios y controlador corren en el proceso principal y la ventana recibe el estado por IPC. En el navegador corren dentro de la página. La única dependencia en tiempo de ejecución es `ws`; `electron`, `electron-builder` y `node-media-server` son de desarrollo, y de este último solo se copian las piezas del protocolo RTMP, con su licencia.
 
 Seguridad:
-- La ventana corre con `contextIsolation` y `sandbox`, sin acceso a Node. Solo ve cuatro funciones del preload.
-- La interfaz se sirve con el protocolo propio `app://tenveo`, que solo expone `renderer/` y `core/`.
-- El proceso principal acepta solo comandos conocidos y solo de la ventana de la app.
-- La app no pide cámara, micrófono ni otros permisos del sistema: los rechaza todos.
+- La ventana corre con `contextIsolation` y `sandbox`, sin acceso a Node. Solo ve las funciones del preload.
+- La interfaz se sirve con el protocolo propio `app://tenveo`, que solo expone `renderer/`, `core/` y las imágenes y videos de la producción (`media/`, con nombres que son la huella SHA-256 del archivo).
+- El proceso principal acepta solo comandos conocidos y solo de la ventana de la app, y valida toda producción que guarda.
+- Solo la propia ventana puede usar la **cámara** y **capturar la pantalla** (fuentes del estudio); macOS pide permiso la primera vez. El micrófono y los demás permisos se rechazan.
 - El video se entrega solo en 127.0.0.1.
 - La app nunca cambia los destinos de transmisión del PC500 y nunca enciende o apaga STREAM si un destino sale a internet (ver 4.4).
-- La página tiene una Content-Security-Policy estricta (solo permite el worker propio), y los nombres de escenas de OBS se insertan como texto.
+- La página tiene una Content-Security-Policy estricta (sin estilos ni scripts en línea), y los nombres de escenas y fuentes se insertan como texto.
 
 ### 4.2 Protocolo del PC500 ([`pc500-protocol.js`](tenveo_electron/src/core/pc500-protocol.js))
 
@@ -170,7 +177,7 @@ Seguridad:
 | Silencio de IN 1 a IN 4 | `{"audio_in1_mode": 0}` (0 OFF, 1 ON, 2 AFV) | modos `audio_in*_mode` |
 
 Lectura de estado, igual que `websocketUtil.js`:
-- `pvw-N: "active-red"` → cámara N en **PGM**; `"active-green"` → en **PVW**. Si el equipo no informa ninguna cámara encendida (pasa tras un reinicio), la app muestra "sin dato" en vez de inventar una, y SYNC OBS no toca la escena.
+- `pvw-N: "active-red"` → cámara N en **PGM**; `"active-green"` → en **PVW**. Si el equipo no informa ninguna cámara encendida (pasa tras un reinicio), la app muestra "sin dato" en vez de inventar una.
 - Cada botón del panel, CUT, AUTO y FTB guardan su luz: solo cuentan `active-*` y `flash-*` con su color.
 - **El PC500 guarda los comandos crudos que recibe** y se los manda a quien se conecta (por ejemplo `"cut": 1` o `"pvw-aux": 1`). Un `1` no es una luz, y tapa la luz verdadera hasta que el equipo la vuelve a informar. Por eso la app no manda una cámara a Preview si ya está en Preview. Lo guardado desapareció cuando el equipo se reinició.
 - STREAM: `"stream": "active-green"` transmitiendo, `"none-green"` apagado; `stream_time` cuenta segundos mientras transmite.
@@ -212,13 +219,34 @@ Hay **un solo modo**: la app toma el video del servidor interno del PC500. Lee e
 - **Encender STREAM** solo se activa si ningún destino sale a internet: con STREAM el equipo transmite a los dos destinos, y si uno es YouTube saldría al aire. En ese caso el video aparece cuando el usuario sale al aire por su cuenta.
 - **Apagar STREAM** solo se activa si ningún destino sale a internet, para no cortar una transmisión en vivo.
 
-### 4.5 OBS ([`obs-service.js`](tenveo_electron/src/core/obs-service.js))
-Cliente del protocolo **OBS WebSocket v5** (por defecto `ws://127.0.0.1:4455`):
-- Saludo: Hello (op 0) → Identify (op 1) → Identified (op 2).
-- **Contraseña:** si OBS la pide, el Identify lleva `base64(sha256(base64(sha256(contraseña + salt)) + challenge))`. Si no coincide, OBS cierra con el código 4009 y la app lo avisa.
-- Pide `GetStreamStatus`, `GetRecordStatus`, `GetVirtualCamStatus` y `GetSceneList`, y escucha sus cambios.
-- Acciones: `ToggleStream`, `ToggleRecord`, `ToggleVirtualCam`, `SetCurrentProgramScene`.
-- Con **SYNC OBS**, cuando cambia la cámara en PGM, la app pone al aire la escena de OBS cuyo nombre contenga `cam N`, `camN` o `camera N`. Nombra tus escenas `Cam 1`, `Cam 2`, `Cam 3`, `Cam 4`.
+### 4.5 Estudio de producción ([`production.js`](tenveo_electron/src/core/production.js), [`production-view.js`](tenveo_electron/src/renderer/js/production-view.js))
+
+Reemplaza a OBS dentro de la app (pedido del 18 de octubre de 2026). Se abre con **Producción** en la barra (⌘2) y vuelve con **Consola** (⌘1). El plan completo, con las fases que faltan, está en [PLAN_PRODUCCION.md](tenveo_electron/PLAN_PRODUCCION.md).
+
+**Escenas y fuentes:**
+- Una producción tiene **escenas**; cada escena tiene **fuentes en capas**. La escena elegida es la que está en la **salida** (como OBS sin el modo estudio), y al cambiar de escena hay un fundido de 300 ms (o corte, en las propiedades de la salida).
+- Fuentes: **Programa del PC500** (su video, a pantalla completa), **Cámara** (cámaras de la Mac, capturadoras e iPhone con Continuity Camera), **Pantalla o ventana** (con un selector de miniaturas), **Imagen** (PNG, JPEG, WebP y GIF animado), **Video** (MP4, MOV, M4V, WebM, con repetir y empezar de nuevo al mostrar la escena), **Texto** (letra del sistema, tamaño, negrita, alineación, color, sombra y caja de fondo) y **Color**.
+- Cada fuente tiene posición y tamaño, **recorte** (como OBS: lo que queda no se estira), **opacidad** y **chroma key** (el de OBS: distancia en CbCr con similitud, suavidad y reducción del derrame; verde, azul u otro color).
+- Las fuentes nuevas entran al frente; el color, al fondo. Se ocultan, bloquean, renombran, duplican, copian y pegan, se suben y bajan, y se ajustan, llenan o vuelven a su tamaño original.
+- Las imágenes y videos se copian a la carpeta de la app con el nombre de su huella: la escena sigue funcionando aunque se borre el original, y el mismo archivo agregado dos veces ocupa lugar una sola vez. También se pueden arrastrar desde el Finder a la salida.
+
+**En la salida:** un clic elige la fuente, arrastrarla la mueve con **imán** a los bordes y el centro (guías amarillas; Mayúsculas lo apaga), las esquinas cambian el tamaño manteniendo la proporción (Mayúsculas lo libera), las flechas mueven 1 px (10 con Mayúsculas) y Borrar la quita. El clic derecho abre el menú nativo de la Mac. Una fuente sin imagen todavía (una cámara que se está abriendo, el PC500 sin STREAM) se marca con un recuadro punteado solo en el editor, nunca en la salida.
+
+**Historial y guardado:** cada cambio entra en el historial: **⌘Z** lo deshace y **⇧⌘Z** lo rehace (deshacer no cambia la escena que está en la salida). La producción se guarda sola en `production.json` y las imágenes y videos en `media/`, dentro de la carpeta de datos de la app.
+
+**La consola:** la pestaña **Escenas** de la barra lateral cambia la escena de la salida sin dejar la consola.
+
+**Cómo funciona por dentro:**
+- El **compositor** ([`production-worker.js`](tenveo_electron/src/renderer/js/production-worker.js)) es un worker con WebGL2 sobre un canvas transferido, a la resolución de salida (720p a 4K30). Cada fuente es un rectángulo con su textura; el chroma key y la opacidad van en el shader, y el fundido mezcla las dos escenas dibujadas por separado.
+- Solo dibuja cuando algo cambió. Un cuadro de video se dibuja apenas llega si el compositor está libre; con la ventana oculta, un temporizador reemplaza a los cuadros de pantalla.
+- El **programa del PC500** llega del worker del monitor PGM, que le pasa una copia de cada cuadro por un `MessagePort`. Mientras se ve Producción, el monitor PGM deja de dibujar.
+- **Cámaras y pantallas:** `getUserMedia` → `MediaStreamTrackProcessor`, y los cuadros van directo al worker. **Videos:** un `<video>` sin mostrar, cuadro por cuadro. **Imágenes:** las decodifica el worker con `ImageDecoder`, también las animadas. **Textos:** se dibujan con la letra del sistema a la escala a la que se ven, para que salgan nítidos.
+- Lo que deja de usarse se apaga 8 s después; volver a una escena es instantáneo. Con la consola a la vista, el compositor no dibuja y las fuentes se apagan.
+- La app ya no se frena en segundo plano (interruptores de Chromium y `backgroundThrottling: false`): medido, con la ventana tapada u oculta Chromium pausaba los videos sin audio y dejaba de dibujar. Con la ventana minimizada, el monitor y el compositor no dibujan, pero el video se sigue recibiendo.
+
+**Permisos de macOS:** la primera vez que se agrega una cámara, macOS pide permiso. Para capturar la pantalla hay que habilitar a Tenveo Studio en *Ajustes del Sistema → Privacidad y seguridad → Grabación de pantalla* y volver a abrir la app; el selector lo explica y abre esos ajustes. Con la firma provisional, macOS puede volver a pedir estos permisos después de instalar una versión nueva.
+
+**Lo que falta** (fases 3 a 5 del plan): las cámaras PTZ NDI de Tenveo (búsqueda, video y control), la **transmisión a YouTube** con la clave y la grabación, el audio de las fuentes, el modo estudio (vista previa y programa) y más transiciones y filtros.
 
 ### 4.6 Video por adb en red ([`adb-bridge.js`](tenveo_electron/src/main/adb-bridge.js))
 - Busca `adb` en este orden: copia incluida en la app, `vendor/`, `ANDROID_HOME` o `ANDROID_SDK_ROOT`, rutas comunes, el `PATH` y el shell de inicio del usuario.
@@ -232,11 +260,11 @@ El diseño sigue las Human Interface Guidelines de Apple (sistema 26). La especi
 
 - **Superficies planas:** la jerarquía la dan la disposición y la claridad de cada superficie, con líneas finas de un píxel; no hay brillos, biseles ni halos.
 - **La isla:**
-  - Al centro de la barra, una cápsula muestra el estado del PC500 (con su latencia) y de OBS.
+  - Al centro de la barra, una cápsula muestra el estado del PC500, con su latencia.
   - Los avisos salen de ella como de la Dynamic Island: se transforma en el mensaje y después vuelve.
   - Un clic la cierra; con el puntero encima se queda.
 - **App de Mac:**
-  - menú en español con **Ajustes… (⌘,)**, Acerca de, Edición, zoom y pantalla completa;
+  - menú en español con **Ajustes… (⌘,)**, Acerca de, Edición, **Consola (⌘1)** y **Producción (⌘2)**, zoom y pantalla completa;
   - ícono propio en la grilla de macOS.
 - **Apariencia:**
   - Sigue a macOS (clara u oscura) y se puede fijar en **Ajustes → Apariencia**; se aplica al instante.
@@ -244,7 +272,7 @@ El diseño sigue las Human Interface Guidelines de Apple (sistema 26). La especi
   - Todo texto con significado da 4,5:1 o más.
 - **Barra superior:**
   - En la app de escritorio también es la barra de título: los semáforos de macOS quedan dentro.
-  - A la izquierda va la marca, al centro la isla y a la derecha las salidas de OBS (Live, Rec, Vcam, solo texto), SYNC OBS y Ajustes.
+  - A la izquierda va la marca, al centro la isla y a la derecha el selector **Consola · Producción** y Ajustes.
 - **Monitores:**
   - El PGM, con el video en vivo del PC500, ocupa dos tercios en 16:9. El PVW, que no lleva video, es una pantalla de la misma altura con la cámara en Preview.
   - Un anillo rojo o verde los identifica.
@@ -259,40 +287,46 @@ El diseño sigue las Human Interface Guidelines de Apple (sistema 26). La especi
   - Springs de Apple: la isla se transforma, las pestañas deslizan su selección y el panel entra detrás, Ajustes nace del botón que lo abrió, el video se materializa al aparecer y los tiempos de Stream y Rec ruedan sus dígitos.
   - Con Reducir movimiento solo quedan fundidos.
 - **Sin conexión con el PC500:** la consola, el mezclador y los botones del equipo quedan atenuados.
-- **Barra lateral** con pestañas: **Audio** (mezclador), **OBS** (escenas) y **Equipo** (datos del PC500, STREAM, REC y demás botones del equipo, y estado del video con Encender y Apagar STREAM).
+- **Barra lateral** con pestañas: **Audio** (mezclador), **Escenas** (la escena de la salida de la producción) y **Equipo** (datos del PC500, STREAM, REC y demás botones del equipo, y estado del video con Encender y Apagar STREAM).
+- **Producción** (ver 4.5): la salida grande en 16:9 con las manijas de la fuente elegida, Escenas y Fuentes debajo, y a la derecha las propiedades de la fuente (o de la salida, si no hay ninguna elegida). Menús nativos de la Mac en el botón + y en el clic derecho.
 - **Ajustes** (⌘,), con la forma de Ajustes del Sistema, en grupos de filas:
   - IP del PC500, **Buscar**, **Reconectar** y el panel web;
-  - OBS, con un interruptor para quitar la contraseña guardada;
   - **Apariencia** con miniaturas: Clara, Oscura o Automática.
 - **Rendimiento:**
   - Cada actualización solo toca el DOM donde algo cambió.
   - Mientras hay video no hay ningún desenfoque de fondo en pantalla: en esta Mac obliga a la GPU a componer toda la ventana en cada cuadro (DISENO.md, sección 8).
-- **Atajos:** las teclas 1 a 5 ponen la cámara en Preview. CUT y AUTO no tienen atajo a propósito, para que una tecla pulsada por error no cambie lo que está al aire.
+- **Atajos:** en la consola, las teclas 1 a 5 ponen la cámara en Preview. CUT y AUTO no tienen atajo a propósito, para que una tecla pulsada por error no cambie lo que está al aire. En Producción: flechas, Borrar, Esc, ⌘Z, ⇧⌘Z, ⌘D (duplicar), ⌘C y ⌘V.
 
 ### 4.8 Configuración
-Se guarda en `~/Library/Application Support/Tenveo Studio/settings.json`: IP del PC500, dirección y puerto de OBS, SYNC OBS y la apariencia (`system`, `dark` o `light`). La contraseña de OBS se cifra con el llavero de macOS (`safeStorage`). Las opciones de versiones anteriores (modos USB, fuentes de video) se descartan al leer. En el navegador la configuración queda en el propio navegador y la contraseña solo dura la sesión.
+Se guarda en `~/Library/Application Support/Tenveo Studio/`:
+- `settings.json`: IP del PC500 y apariencia (`system`, `dark` o `light`). Las claves (por ejemplo, la de transmisión de la fase 4) se guardan cifradas con el llavero de macOS (`safeStorage`). Las opciones de versiones anteriores (modos USB, fuentes de video, OBS) se descartan al leer, y la contraseña de OBS guardada se borra.
+- `production.json` y `media/`: la producción (escenas, fuentes y salida) y sus imágenes y videos.
+
+En el navegador la configuración queda en el propio navegador.
 
 ### 4.9 Versión web y modo demo
 - `npm run web` sirve la consola en `http://localhost:8765`, que se conecta al PC500 por su IP. El video del PC500 y la búsqueda en la red solo están en la app de escritorio.
-- Agregando `?demo` a la dirección, la consola usa simuladores del PC500 y de OBS dentro de la página, sin red. Sirve para probarla desde cualquier dispositivo o un Codespace.
+- Agregando `?demo` a la dirección, la consola usa un simulador del PC500 dentro de la página, sin red. Sirve para probarla desde cualquier dispositivo o un Codespace.
+- El estudio de producción es solo de la app de escritorio: usa el video del PC500, las cámaras de la Mac y archivos propios.
 
 ### 4.10 Pruebas
 ```bash
 cd tenveo_electron
-npm test             # 98 pruebas: protocolo, red, IPv6, OBS, búsqueda, video, adb, configuración, springs y sintaxis
-npm run smoke        # abre la app contra simuladores, pulsa botones y guarda una captura
+npm test             # 107 pruebas: protocolo, red, IPv6, búsqueda, video, adb, configuración, producción, springs y sintaxis
+npm run smoke        # abre la app contra el simulador, pulsa botones (también en Producción) y guarda una captura
 npm run smoke:web    # lo mismo en modo navegador (SMOKE_WEB_DEMO=1 para el modo demo)
 npm run smoke:video  # la app enciende STREAM, toma el video de un servidor RTMP de prueba, lo dibuja y lo apaga
-npm run smoke:ui     # T-Bar 1:1 y banda elástica, pestañas con flechas, Ajustes, apariencia, atajos y la isla
+npm run smoke:ui     # T-Bar, pestañas, Ajustes, atajos, la isla y Producción (mover con imán, tamaño, ⌘Z, chroma key leyendo píxeles de la salida, escenas y guardado). Sin ventana visible; SMOKE_UI_VISIBLE=1 la muestra
 npm run icon         # vuelve a dibujar el ícono de la app (build/icon.icns)
-npm run mock         # simuladores del PC500 y de OBS para trabajar sin el equipo
-node scripts/screenshots.mjs [carpeta] [--solo 1,7]   # 17 capturas: pestañas, ajustes, sin conexión, tamaños, claro, contraste, transparencia y la isla
+npm run mock         # simulador del PC500 para trabajar sin el equipo
+node scripts/screenshots.mjs [carpeta] [--solo 1,7]   # 22 capturas: pestañas, ajustes, sin conexión, tamaños, claro, contraste, transparencia, la isla y Producción
 SMOKE_WEB_DEMO=1 SMOKE_WEB_SIZE=390x844 npm run smoke:web   # la versión web del tamaño de un teléfono
 
 # Mediciones (abren la ventana de la app unos segundos):
 node scripts/bench-video.mjs                         # video 1080p60: latencia, cuadros perdidos, tirones, clic y CPU
 node scripts/bench-video.mjs --app "/ruta/Tenveo Studio.app"   # lo mismo con una app empaquetada
 node scripts/bench-video.mjs --ajustes               # lo mismo con el diálogo de ajustes abierto sobre el video
+node scripts/bench-video.mjs --produccion            # la vista Producción: el video pasa por el compositor
 node scripts/bench-network.mjs [--equipo fe80::…%en0]          # red de la versión 1.0.0 contra la actual
 
 # Con el PC500 real (solo lectura, salvo lo indicado):
@@ -307,7 +341,7 @@ El emisor de prueba codifica una carta de ajuste en H.264 con el codificador de 
 
 | Target | Cómo se genera | Resultado |
 |---|---|---|
-| **Mac universal** (Intel y Apple Silicon) | `npm run dist` | `dist/TenveoStudio-1.5.0-universal.dmg`, `.zip` y `dist/mac-universal/Tenveo Studio.app` |
+| **Mac universal** (Intel y Apple Silicon) | `npm run dist` | `dist/TenveoStudio-1.6.0-universal.dmg`, `.zip` y `dist/mac-universal/Tenveo Studio.app` |
 | Solo Intel o solo Apple Silicon | `npm run dist:x64` o `npm run dist:arm64` | `.dmg` y `.zip` en `dist/` |
 | **Web** | no se compila | `npm run web` o `./start_app.sh --web` |
 
@@ -331,18 +365,17 @@ xattr -dr com.apple.quarantine "/Applications/Tenveo Studio.app"
 | `22` | PC500 | SSH del equipo (la app no lo usa) |
 | aleatorio | Mac, solo `127.0.0.1` | Video FLV entre el proceso principal y el monitor PGM |
 | `8765` | Mac | Versión web (`npm run web` o `start_app.sh --web`) |
-| `4455` | Mac | OBS WebSocket v5 |
-| `18089`, `14455` | Mac | Simuladores del PC500 y de OBS (`npm run mock`) |
+| `18089` | Mac | Simulador del PC500 (`npm run mock`) |
 
 ---
 
 ## 6. Uso rápido
 
 1. Conecta el PC500 por **Ethernet** a la misma red que la Mac, o con un **cable de red directo** a la Mac.
-2. Abre **OBS** y activa *Herramientas → Configuración del servidor WebSocket* (puerto 4455). Si le pones contraseña, escríbela en los ajustes de la app.
-3. Abre **Tenveo Studio**: doble clic en la app o `./start_app.sh`. La app busca sola el PC500 en la red.
-4. La barra superior debe decir **PC500 · Red** o **Red · directo** en verde, con la latencia, y **OBS · Conectado**.
-5. El video del PC500 aparece en el monitor PGM en cuanto STREAM está encendido. Para verlo sin salir al aire, en **Equipo** pulsa **Encender STREAM** (solo se activa si los destinos de STREAM son el servidor interno del equipo).
+2. Abre **Tenveo Studio**: doble clic en la app o `./start_app.sh`. La app busca sola el PC500 en la red.
+3. La barra superior debe decir **PC500 · Red** o **Red · directo** en verde, con la latencia.
+4. El video del PC500 aparece en el monitor PGM en cuanto STREAM está encendido. Para verlo sin salir al aire, en **Equipo** pulsa **Encender STREAM** (solo se activa si los destinos de STREAM son el servidor interno del equipo).
+5. **Producción** (⌘2): arma tus escenas. Con **+** en Fuentes agregas el programa del PC500, cámaras, la pantalla, imágenes, videos, textos o colores; las arrastras y cambias de tamaño en la salida, y en las propiedades ajustas recorte, opacidad y chroma key. Todo se guarda solo.
 
 macOS pide permiso de **red local** la primera vez, para conectarse al PC500 y buscarlo. Acéptalo.
 
@@ -405,6 +438,11 @@ El mando tarda lo mismo en todas las versiones: esos 10 ms los pone el propio PC
 
 **1.5.0**, en corridas alternadas con la 1.4.0 en las mismas condiciones, rinde igual: 123 contra 122 ms de latencia, 0 cuadros perdidos y 46–48 % de CPU en las dos.
 
+**1.6.0 (estudio de producción)**, con el simulador y video 1080p60:
+- Consola: igual que antes. 113 a 115 ms de latencia, ventana a 60 cuadros/s (p95 de 17,4 ms), clic → Preview en 16 ms, CPU de 38 a 47 %. Los cuadros perdidos varían entre corridas (0 a 0,8 %) con el emisor de prueba codificando en la misma Mac.
+- Producción, con el video pasando por el compositor: 118 a 119 ms de latencia medida en la salida compuesta (unos 3 ms más que el monitor PGM), el compositor dibuja los 60 cuadros por segundo del PC500, ventana a 60 cuadros/s y CPU de 43 a 49 %.
+- Las lecturas de píxeles de las pruebas son asíncronas: la primera versión leía en el momento y frenaba la GPU.
+
 ## 9. Limitaciones conocidas y pendientes
 
 > [!WARNING]
@@ -415,5 +453,6 @@ El mando tarda lo mismo en todas las versiones: esos 10 ms los pone el propio PC
 - **GPU en esta Mac:** con Electron 44 o posterior la app vuelve a dibujar por software (ver 4.11).
 - **Firma de la app:** es provisional. Para repartirla sin avisos de seguridad hace falta una cuenta de desarrollador de Apple y notarización.
 - **Vúmetros:** siguen la posición del fader. El PC500 no manda niveles de audio.
-- **NDI:** el firmware tiene las claves `ndi_name` y `ndi_list`, pero la app todavía no las controla.
+- **NDI:** el firmware tiene las claves `ndi_name` y `ndi_list`, pero la app todavía no las controla. Las cámaras PTZ NDI de Tenveo como fuentes del estudio son la fase 3 del plan de producción.
+- **Estudio de producción:** todavía no transmite ni graba (fase 4), no mezcla el audio de sus fuentes y no tiene modo estudio. Una pantalla o ventana necesita el permiso de Grabación de pantalla de macOS.
 - **App de Flutter (legado):** `tenveo_app/` ya no se desarrolla. Su compilación nativa necesita Xcode y su T-Bar puede mandar varios CUT en un solo arrastre.

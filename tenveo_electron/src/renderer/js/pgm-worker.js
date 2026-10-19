@@ -10,6 +10,10 @@
 // y la espera cubre la dispersión del resto. Por una red pareja queda en unos
 // pocos milisegundos; si el servidor manda el video a ráfagas, crece lo justo
 // para que la imagen no salte.
+//
+// El estudio de producción usa el mismo video sin decodificarlo dos veces: si
+// lo pide, recibe una copia de cada cuadro por un MessagePort. Cuando el
+// monitor no está a la vista (vista Producción) no se dibuja aquí.
 
 const WINDOW_MS = 2000; // muestras que se usan para medir la llegada
 const WARMUP_MS = 800; // al conectar llega de golpe el último GOP guardado
@@ -36,9 +40,12 @@ let firstFrame = false;
 let debug = false;
 let stats = null;
 let statsTimer = 0;
+let tap = null; // puerto hacia el compositor de producción
+let tapOn = false;
+let drawOn = true;
 
 function resetStats() {
-  stats = { received: 0, decoded: 0, drawn: 0, skipped: 0, delayMs: 0, latency: [], width: 0, height: 0, decoderErrors: 0, lastError: '', software: false };
+  stats = { received: 0, decoded: 0, drawn: 0, forwarded: 0, skipped: 0, delayMs: 0, latency: [], width: 0, height: 0, decoderErrors: 0, lastError: '', software: false };
 }
 resetStats();
 
@@ -54,10 +61,18 @@ self.onmessage = (event) => {
   } else if (message.type === 'debug') {
     debug = Boolean(message.on);
     stats.latency = [];
+  } else if (message.type === 'tap') {
+    tap = message.port;
+  } else if (message.type === 'tap-on') {
+    tapOn = Boolean(message.on);
+  } else if (message.type === 'draw') {
+    drawOn = Boolean(message.on);
   }
 };
 
 function stop() {
+  // El compositor deja de mostrar el último cuadro: ya no hay señal.
+  if (tapOn && firstFrame) tap?.postMessage({ type: 'end', key: 'pc500' });
   session += 1;
   abort?.abort();
   abort = null;
@@ -88,7 +103,7 @@ function start(url) {
   read(url, current).catch((error) => {
     if (current === session && error?.name !== 'AbortError') self.postMessage({ type: 'error', message: String(error?.message ?? error) });
   });
-  requestAnimationFrame(() => schedule(current));
+  schedule(current);
 }
 
 // --- FLV ---
@@ -226,10 +241,21 @@ function feed(now) {
   }
 }
 
+// Se alimenta al decodificador en cada cuadro de la pantalla. Con la ventana
+// oculta no hay cuadros de pantalla: lo hace un temporizador, así el video
+// sigue llegando al estudio de producción.
 function schedule(current) {
   if (current !== session) return;
   feed(performance.now());
-  requestAnimationFrame(() => schedule(current));
+  let raf = 0;
+  let timer = 0;
+  const next = () => {
+    cancelAnimationFrame(raf);
+    clearTimeout(timer);
+    schedule(current);
+  };
+  raf = requestAnimationFrame(next);
+  timer = setTimeout(next, 20);
 }
 
 function onFrame(frame, current) {
@@ -249,20 +275,27 @@ function onFrame(frame, current) {
   }
   const width = frame.displayWidth;
   const height = frame.displayHeight;
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
-  }
   stats.width = width;
   stats.height = height;
-  ctx.drawImage(frame, 0, 0, width, height);
+  if (tapOn && tap) {
+    const copy = frame.clone();
+    tap.postMessage({ type: 'frame', key: 'pc500', frame: copy }, [copy]);
+    stats.forwarded += 1;
+  }
+  if (drawOn) {
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    ctx.drawImage(frame, 0, 0, width, height);
+    stats.drawn += 1;
+    if (debug && stats.drawn % 6 === 0) readStamp(width);
+  }
   frame.close();
-  stats.drawn += 1;
   if (!firstFrame) {
     firstFrame = true;
     self.postMessage({ type: 'first-frame', width, height });
   }
-  if (debug && stats.drawn % 6 === 0) readStamp(width);
 }
 
 // Diagnóstico: el emisor de prueba estampa la hora en 32 bloques arriba a la

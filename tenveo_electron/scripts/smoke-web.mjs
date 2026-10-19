@@ -11,7 +11,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import electronPath from 'electron';
-import { startMockObs } from '../dev/mock-obs.js';
 import { startMockPc500 } from '../dev/mock-pc500.js';
 
 const projectDir = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -30,7 +29,6 @@ function freePort() {
 }
 
 const pc500 = await startMockPc500({ autoDelayMs: 300 });
-const obs = await startMockObs();
 const webPort = await freePort();
 const web = spawn(process.execPath, [path.join(projectDir, 'scripts', 'serve-web.mjs'), '--port', String(webPort)], {
   stdio: 'ignore',
@@ -49,7 +47,7 @@ const { ELECTRON_RUN_AS_NODE, ...baseEnv } = process.env;
 const demo = process.env.SMOKE_WEB_DEMO === '1';
 const url = demo
   ? `http://127.0.0.1:${webPort}/?demo`
-  : `http://127.0.0.1:${webPort}/?pc500=ws://127.0.0.1:${pc500.port}&obs=127.0.0.1:${obs.port}`;
+  : `http://127.0.0.1:${webPort}/?pc500=ws://127.0.0.1:${pc500.port}`;
 const child = spawn(electronPath, [path.join(projectDir, 'dev', 'web-capture.mjs')], {
   env: {
     ...baseEnv,
@@ -78,9 +76,8 @@ const checks = [
   ['la página terminó sin errores', code === 0],
   ['corrió en modo navegador', summary?.platform === 'browser'],
   ['se conectó al PC500 por red', /^Red/.test(summary?.hardware ?? '')],
-  ['se conectó a OBS', summary?.obs === 'Conectado'],
   ['CAM 4 quedó al aire', summary?.pgm === 'CAM 4 · SDI 2'],
-  ['SYNC OBS marcó la escena Cam 4', summary?.currentScene === 'Cam 4'],
+  ['sin el estudio de producción, que es de la app de escritorio', summary?.views === false && summary?.scenesTab === false],
 ];
 if (demo) {
   checks.push(
@@ -92,13 +89,12 @@ if (demo) {
   checks.push(
     ['el PC500 recibió PVW 4', pc500.received.some((m) => m['pvw-4'] === 1)],
     ['el PC500 recibió AUTO', pc500.received.some((m) => m.auto === 1)],
-    ['OBS recibió la escena Cam 4', obs.state.program === 'Cam 4'],
     ['sin etiqueta DEMO', summary?.demoTag === false],
   );
 }
 
 web.kill();
-await Promise.allSettled([pc500.close(), obs.close()]);
+await Promise.allSettled([pc500.close()]);
 
 for (const [name, ok] of checks) console.log(`${ok ? '✔' : '✖'} ${name}`);
 const failed = checks.some(([, ok]) => !ok);

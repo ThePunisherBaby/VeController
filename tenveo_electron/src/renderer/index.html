@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; media-src 'none'; connect-src 'self' ws: wss: http://127.0.0.1:*; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; media-src 'self'; connect-src 'self' ws: wss: http://127.0.0.1:*; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>Tenveo Studio</title>
@@ -17,7 +17,25 @@
     <!-- Marca: el ícono de la app en pequeño. Una cortina (wipe) entre PGM y PVW. -->
     <symbol id="i-brand" viewBox="0 0 20 20"><g clip-path="url(#brand-clip)"><path d="M0 0H20V20H0Z" fill="#30d158"/><path d="M0 0H20L0 20Z" fill="#ff453a"/></g><path d="M15.6 4.4 4.4 15.6" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="10" r="2.2" fill="#fff"/></symbol>
     <symbol id="i-gear" viewBox="0 0 24 24"><path d="M9.93 5L10.23 2.46A9.7 9.7 0 0 1 13.77 2.46L14.07 5A7.3 7.3 0 0 1 15.48 5.58L17.49 4.01A9.7 9.7 0 0 1 19.99 6.51L18.42 8.52A7.3 7.3 0 0 1 19 9.93L21.54 10.23A9.7 9.7 0 0 1 21.54 13.77L19 14.07A7.3 7.3 0 0 1 18.42 15.48L19.99 17.49A9.7 9.7 0 0 1 17.49 19.99L15.48 18.42A7.3 7.3 0 0 1 14.07 19L13.77 21.54A9.7 9.7 0 0 1 10.23 21.54L9.93 19A7.3 7.3 0 0 1 8.52 18.42L6.51 19.99A9.7 9.7 0 0 1 4.01 17.49L5.58 15.48A7.3 7.3 0 0 1 5 14.07L2.46 13.77A9.7 9.7 0 0 1 2.46 10.23L5 9.93A7.3 7.3 0 0 1 5.58 8.52L4.01 6.51A9.7 9.7 0 0 1 6.51 4.01L8.52 5.58A7.3 7.3 0 0 1 9.93 5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
-    <symbol id="i-sync" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 0 1-12.9 5.2M4.5 12a7.5 7.5 0 0 1 12.9-5.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M17.6 2.8v4.1h-4.1M6.4 21.2v-4.1h4.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5.5 12h13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-duplicate" viewBox="0 0 24 24"><rect x="8.2" y="8.2" width="11.6" height="11.6" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M15.8 5.6a2.6 2.6 0 0 0-2.6-1.4H6.8a2.6 2.6 0 0 0-2.6 2.6v6.4a2.6 2.6 0 0 0 1.4 2.3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-chevron-up" viewBox="0 0 24 24"><path d="m6.5 14.5 5.5-5.5 5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6.5 9.5 5.5 5.5 5.5-5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.8 12C4.9 8 8.2 5.9 12 5.9S19.1 8 21.2 12c-2.1 4-5.4 6.1-9.2 6.1S4.9 16 2.8 12Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="currentColor"/></symbol>
+    <symbol id="i-eye-slash" viewBox="0 0 24 24"><path d="M9.6 6.3A9.4 9.4 0 0 1 12 5.9c3.8 0 7.1 2.1 9.2 6.1a13 13 0 0 1-2.4 3.2M6.4 7.7A12.6 12.6 0 0 0 2.8 12c2.1 4 5.4 6.1 9.2 6.1 1.6 0 3.1-.4 4.4-1.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="m4 4 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5.6" y="10.4" width="12.8" height="9.6" rx="2.4" fill="currentColor"/><path d="M8.4 10.4V8a3.6 3.6 0 0 1 7.2 0v2.4" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-lock-open" viewBox="0 0 24 24"><rect x="5.6" y="10.4" width="12.8" height="9.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8.4 10.4V8a3.6 3.6 0 0 1 7-1.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-align-left" viewBox="0 0 24 24"><path d="M4.5 6.5h15M4.5 10.5h9M4.5 14.5h15M4.5 18.5h9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-align-center" viewBox="0 0 24 24"><path d="M4.5 6.5h15M7.5 10.5h9M4.5 14.5h15M7.5 18.5h9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-align-right" viewBox="0 0 24 24"><path d="M4.5 6.5h15M10.5 10.5h9M4.5 14.5h15M10.5 18.5h9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <!-- Tipos de fuente. El programa del PC500 lleva la cortina de la marca. -->
+    <symbol id="i-src-pc500" viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3.8 6.2 12 5.5 6 18.5H5.6A2.6 2.6 0 0 1 3 15.9V8.1Z" fill="currentColor" opacity="0.45"/><path d="m15 8.5-6 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-src-screen" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 20h6M12 16.5V20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-src-image" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m3.6 17 5-5.2a1.4 1.4 0 0 1 2 0l3.4 3.5 1.6-1.6a1.4 1.4 0 0 1 2 0l2.8 2.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="16" cy="9" r="1.7" fill="currentColor"/></symbol>
+    <symbol id="i-src-video" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 9.1v5.8a.5.5 0 0 0 .8.4l4.4-2.9a.5.5 0 0 0 0-.8l-4.4-2.9a.5.5 0 0 0-.8.4Z" fill="currentColor"/></symbol>
+    <symbol id="i-src-text" viewBox="0 0 24 24"><path d="M5 6.5V5h14v1.5M12 5v14M9 19h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-src-color" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 3.8a8.2 8.2 0 0 0 0 16.4Z" fill="currentColor"/></symbol>
     <symbol id="i-camera" viewBox="0 0 24 24"><rect x="2.8" y="6.8" width="12.4" height="10.4" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="m15.2 11 5.6-3.3v8.6L15.2 13z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m15.5 15.5 4.7 4.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
     <symbol id="i-xmark" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
@@ -33,7 +51,7 @@
       <div class="toolbar-lead">
         <svg class="brand-mark" aria-hidden="true"><use href="#i-brand"/></svg>
         <h1 class="brand-name">Tenveo Studio</h1>
-        <span class="demo-tag" id="demo-tag" title="Modo demo: el PC500 y OBS son simuladores dentro de la página" hidden>Demo</span>
+        <span class="demo-tag" id="demo-tag" title="Modo demo: el PC500 es un simulador dentro de la página" hidden>Demo</span>
       </div>
 
       <div class="island" id="island">
@@ -44,12 +62,6 @@
             <span class="status-text" id="hw-text">Buscando…</span>
             <span class="status-meta" id="hw-latency"></span>
           </button>
-          <span class="island-divider" aria-hidden="true"></span>
-          <span class="status" id="obs-pill" title="Conexión con OBS Studio">
-            <span class="dot" aria-hidden="true"></span>
-            <span class="status-label">OBS</span>
-            <span class="status-text" id="obs-pill-text">Sin conexión</span>
-          </span>
         </div>
         <div class="island-message" id="island-message" role="status" aria-live="polite">
           <svg class="island-icon" id="island-icon" aria-hidden="true"><use href="#i-info"/></svg>
@@ -58,21 +70,18 @@
       </div>
 
       <div class="toolbar-trail">
-        <div class="capsule segment-capsule" role="group" aria-label="Salidas de OBS">
-          <button class="capsule-btn" id="obs-stream" type="button" data-action="obs-stream" aria-pressed="false" title="Transmisión de OBS">Live</button>
-          <button class="capsule-btn" id="obs-record" type="button" data-action="obs-record" aria-pressed="false" title="Grabación de OBS">Rec</button>
-          <button class="capsule-btn capsule-btn--blue" id="obs-vcam" type="button" data-action="obs-vcam" aria-pressed="false" title="Cámara virtual de OBS">Vcam</button>
-        </div>
-        <button class="capsule capsule-btn sync-btn" id="sync-toggle" type="button" data-action="toggle-sync" aria-pressed="true" title="Cambiar la escena de OBS al cambiar la cámara al aire">
-          <svg class="icon" aria-hidden="true"><use href="#i-sync"/></svg>Sync OBS
-        </button>
+        <nav class="segmented views" id="views" role="tablist" aria-label="Vista" hidden>
+          <span class="segmented-thumb" aria-hidden="true"></span>
+          <button class="tab" type="button" role="tab" id="view-console" aria-controls="console-view" data-action="view" data-view="console" aria-selected="true" title="Consola (⌘1)">Consola</button>
+          <button class="tab" type="button" role="tab" id="view-studio" aria-controls="studio-view" data-action="view" data-view="studio" aria-selected="false" tabindex="-1" title="Producción (⌘2)">Producción</button>
+        </nav>
         <button class="capsule icon-btn" type="button" data-action="open-settings" aria-label="Ajustes" title="Ajustes (⌘,)">
           <svg class="icon" aria-hidden="true"><use href="#i-gear"/></svg>
         </button>
       </div>
     </header>
 
-    <main class="workspace">
+    <main class="workspace" id="console-view">
       <section class="stage" aria-label="Monitores y consola">
         <div class="monitors">
           <figure class="monitor monitor--pvw">
@@ -145,7 +154,7 @@
         <nav class="segmented tabs" role="tablist" aria-label="Paneles">
           <span class="segmented-thumb" aria-hidden="true"></span>
           <button class="tab" type="button" role="tab" id="tab-audio" aria-controls="panel-audio" data-action="tab" data-tab="audio" aria-selected="true">Audio</button>
-          <button class="tab" type="button" role="tab" id="tab-obs" aria-controls="panel-obs" data-action="tab" data-tab="obs" aria-selected="false" tabindex="-1">OBS</button>
+          <button class="tab" type="button" role="tab" id="tab-scenes" aria-controls="panel-scenes" data-action="tab" data-tab="scenes" aria-selected="false" tabindex="-1">Escenas</button>
           <button class="tab" type="button" role="tab" id="tab-device" aria-controls="panel-device" data-action="tab" data-tab="device" aria-selected="false" tabindex="-1">Equipo</button>
         </nav>
 
@@ -157,12 +166,13 @@
           <div class="mixer" id="mixer"></div>
         </section>
 
-        <section class="panel" id="panel-obs" data-panel="obs" role="tabpanel" aria-labelledby="tab-obs" hidden>
+        <section class="panel" id="panel-scenes" data-panel="scenes" role="tabpanel" aria-labelledby="tab-scenes" hidden>
           <header class="panel-head">
             <h2 class="section-title">Escenas</h2>
-            <span class="link-state" id="obs-link">Sin conexión</span>
+            <button class="link-btn" type="button" data-action="view" data-view="studio">Editar</button>
           </header>
-          <div class="scenes" id="scenes"></div>
+          <div class="scenes" id="console-scenes" role="listbox" aria-label="Escenas de la producción"></div>
+          <p class="empty">Un clic pone la escena en la salida de la producción.</p>
         </section>
 
         <section class="panel panel--scroll" id="panel-device" data-panel="device" role="tabpanel" aria-labelledby="tab-device" hidden>
@@ -196,6 +206,191 @@
             </div>
           </div>
         </section>
+      </aside>
+    </main>
+
+    <!-- Producción: la salida con sus fuentes en capas, las escenas, las
+         fuentes de la escena y las propiedades de la fuente elegida. -->
+    <main class="studio" id="studio-view" aria-label="Producción" hidden>
+      <section class="studio-main">
+        <div class="output-area" id="output-area">
+          <!-- La selección va fuera del recorte redondeado: las manijas de una
+               fuente a pantalla completa se ven enteras. -->
+          <div class="output-frame" id="output-frame">
+            <div class="output" id="output">
+              <canvas class="output-canvas" id="output-canvas" width="1920" height="1080"></canvas>
+              <span class="screen-label output-label"><span class="tally-tag tally-tag--out">Salida</span><span class="screen-label-text" id="output-label"></span></span>
+              <span class="drop-hint" id="drop-hint" hidden>Suelta la imagen o el video para agregarlo</span>
+            </div>
+            <div class="output-overlay" id="output-overlay" tabindex="0" aria-label="Salida. Un clic elige una fuente; arrástrala para moverla o usa las flechas." aria-describedby="output-label"></div>
+          </div>
+        </div>
+        <div class="docks">
+          <section class="dock card" aria-labelledby="scenes-title">
+            <header class="dock-head">
+              <h2 class="section-title" id="scenes-title">Escenas</h2>
+              <div class="dock-tools">
+                <button class="tool-btn" type="button" data-action="scene-add" aria-label="Escena nueva" title="Escena nueva"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button>
+                <button class="tool-btn" type="button" data-action="scene-duplicate" aria-label="Duplicar la escena" title="Duplicar la escena"><svg class="icon" aria-hidden="true"><use href="#i-duplicate"/></svg></button>
+                <button class="tool-btn" type="button" data-action="scene-remove" id="scene-remove" aria-label="Quitar la escena" title="Quitar la escena"><svg class="icon" aria-hidden="true"><use href="#i-minus"/></svg></button>
+              </div>
+            </header>
+            <div class="list" id="scene-list" role="listbox" aria-labelledby="scenes-title" tabindex="0"></div>
+          </section>
+          <section class="dock card" aria-labelledby="sources-title">
+            <header class="dock-head">
+              <h2 class="section-title" id="sources-title">Fuentes</h2>
+              <div class="dock-tools">
+                <button class="tool-btn" type="button" data-action="source-add" id="source-add" aria-label="Agregar una fuente" title="Agregar una fuente"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button>
+                <button class="tool-btn" type="button" data-action="source-up" id="source-up" aria-label="Subir la fuente" title="Subir (más al frente)"><svg class="icon" aria-hidden="true"><use href="#i-chevron-up"/></svg></button>
+                <button class="tool-btn" type="button" data-action="source-down" id="source-down" aria-label="Bajar la fuente" title="Bajar (más al fondo)"><svg class="icon" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
+                <button class="tool-btn" type="button" data-action="source-remove" id="source-remove" aria-label="Quitar la fuente" title="Quitar la fuente (⌫)"><svg class="icon" aria-hidden="true"><use href="#i-minus"/></svg></button>
+              </div>
+            </header>
+            <div class="list" id="source-list" role="listbox" aria-labelledby="sources-title" tabindex="0"></div>
+          </section>
+        </div>
+      </section>
+
+      <aside class="inspector card" id="inspector" aria-label="Propiedades">
+        <!-- Sin fuente elegida: la salida. -->
+        <div class="inspector-pane" id="pane-output">
+          <h2 class="inspector-title">Salida</h2>
+          <section class="form-section">
+            <h3 class="form-header">Video</h3>
+            <div class="form-group">
+              <label class="form-row"><span class="form-label">Resolución</span><select class="form-select" id="out-resolution" data-out="output"></select></label>
+            </div>
+            <p class="form-footer" id="out-warning" hidden>Esta Mac codifica 1440p60 y 4K30 al límite. Úsalas solo con fuentes de esa resolución; lo recomendado es 1080p60, que es lo que entrega el PC500.</p>
+          </section>
+          <section class="form-section">
+            <h3 class="form-header">Transición entre escenas</h3>
+            <div class="form-group">
+              <label class="form-row"><span class="form-label">Tipo</span><select class="form-select" data-out="transition.kind"><option value="fade">Fundido</option><option value="cut">Corte</option></select></label>
+              <label class="form-row" id="out-duration-row"><span class="form-label">Duración</span><span class="field-unit"><input class="form-input form-input--num" type="number" min="50" max="5000" step="50" data-out="transition.ms" aria-label="Duración en milisegundos"><span>ms</span></span></label>
+            </div>
+          </section>
+          <p class="inspector-hint">Elige una fuente en la salida o en la lista para ver sus propiedades. Puedes arrastrar imágenes y videos desde el Finder a la salida.</p>
+        </div>
+
+        <!-- Fuente elegida. -->
+        <div class="inspector-pane" id="pane-source" hidden>
+          <header class="inspector-head">
+            <span class="source-icon" aria-hidden="true"><svg class="icon"><use id="insp-icon" href="#i-src-image"/></svg></span>
+            <div class="inspector-id">
+              <input class="name-input" id="insp-name" data-field="name" aria-label="Nombre de la fuente" maxlength="80" spellcheck="false" autocomplete="off">
+              <span class="inspector-sub" id="insp-sub"></span>
+            </div>
+          </header>
+
+          <section class="form-section" data-for="pc500">
+            <p class="form-footer">Lo que el PC500 tiene al aire, con sus cámaras, capas y transiciones. Llega por la red cuando STREAM está encendido.</p>
+          </section>
+          <section class="form-section" data-for="camera">
+            <h3 class="form-header">Cámara</h3>
+            <div class="form-group">
+              <label class="form-row"><span class="form-label">Dispositivo</span><select class="form-select" id="insp-camera" data-field="settings.deviceId"></select></label>
+            </div>
+            <p class="form-footer">Cámaras de la Mac y capturadoras USB o Thunderbolt.</p>
+          </section>
+          <section class="form-section" data-for="screen">
+            <h3 class="form-header">Pantalla o ventana</h3>
+            <div class="form-group">
+              <div class="form-row"><span class="form-label form-label--value" id="insp-screen">Ninguna</span><button class="btn btn--small" type="button" data-action="capture-pick">Elegir…</button></div>
+            </div>
+          </section>
+          <section class="form-section" data-for="image video">
+            <h3 class="form-header" id="insp-file-title">Archivo</h3>
+            <div class="form-group">
+              <div class="form-row"><span class="form-label form-label--value" id="insp-file"></span><button class="btn btn--small" type="button" data-action="media-replace">Cambiar…</button></div>
+              <label class="form-row" data-for="video"><span class="form-label">Repetir</span><input class="switch" type="checkbox" role="switch" data-field="settings.loop"></label>
+              <label class="form-row" data-for="video"><span class="form-label">Empezar de nuevo al mostrar la escena</span><input class="switch" type="checkbox" role="switch" data-field="settings.restart"></label>
+            </div>
+          </section>
+          <section class="form-section" data-for="text">
+            <h3 class="form-header">Texto</h3>
+            <div class="form-group">
+              <div class="form-row form-row--stack"><textarea class="form-textarea" data-field="settings.text" rows="3" aria-label="Texto" spellcheck="true"></textarea></div>
+              <label class="form-row"><span class="form-label">Letra</span><select class="form-select" data-field="settings.font" id="insp-font"></select></label>
+              <label class="form-row"><span class="form-label">Tamaño</span><span class="field-unit"><input class="form-input form-input--num" type="number" min="8" max="400" step="1" data-field="settings.size" aria-label="Tamaño en píxeles"><span>px</span></span></label>
+              <label class="form-row"><span class="form-label">Negrita</span><input class="switch" type="checkbox" role="switch" data-field="settings.bold"></label>
+              <div class="form-row"><span class="form-label">Alineación</span>
+                <span class="choice" role="radiogroup" aria-label="Alineación">
+                  <label title="Izquierda"><input type="radio" name="text-align" value="left" data-field="settings.align" aria-label="Izquierda"><span><svg class="icon" aria-hidden="true"><use href="#i-align-left"/></svg></span></label>
+                  <label title="Centro"><input type="radio" name="text-align" value="center" data-field="settings.align" aria-label="Centro"><span><svg class="icon" aria-hidden="true"><use href="#i-align-center"/></svg></span></label>
+                  <label title="Derecha"><input type="radio" name="text-align" value="right" data-field="settings.align" aria-label="Derecha"><span><svg class="icon" aria-hidden="true"><use href="#i-align-right"/></svg></span></label>
+                </span>
+              </div>
+              <label class="form-row"><span class="form-label">Color</span><input class="color-well" type="color" data-field="settings.color" aria-label="Color del texto"></label>
+              <label class="form-row"><span class="form-label">Sombra</span><input class="switch" type="checkbox" role="switch" data-field="settings.shadow"></label>
+              <div class="form-row"><span class="form-label">Fondo</span><span class="slider-field slider-field--color"><input class="slider" type="range" min="0" max="100" step="1" data-field="settings.backgroundOpacity" data-scale="100" aria-label="Opacidad del fondo"><output></output><input class="color-well" type="color" data-field="settings.background" aria-label="Color del fondo"></span></div>
+            </div>
+          </section>
+          <section class="form-section" data-for="color">
+            <h3 class="form-header">Color</h3>
+            <div class="form-group">
+              <label class="form-row"><span class="form-label">Relleno</span><input class="color-well" type="color" data-field="settings.color" aria-label="Color de relleno"></label>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <h3 class="form-header">Posición y tamaño</h3>
+            <div class="form-group">
+              <div class="form-row form-row--pair">
+                <label class="mini-field"><span>X</span><input class="form-input form-input--num" type="number" step="1" data-field="transform.x"></label>
+                <label class="mini-field"><span>Y</span><input class="form-input form-input--num" type="number" step="1" data-field="transform.y"></label>
+              </div>
+              <div class="form-row form-row--pair">
+                <label class="mini-field"><span>Ancho</span><input class="form-input form-input--num" type="number" min="16" step="1" data-field="transform.width"></label>
+                <label class="mini-field"><span>Alto</span><input class="form-input form-input--num" type="number" min="16" step="1" data-field="transform.height"></label>
+              </div>
+              <label class="form-row"><span class="form-label">Mantener la proporción</span><input class="switch" type="checkbox" role="switch" id="insp-aspect" checked></label>
+              <div class="form-row form-row--buttons">
+                <button class="btn btn--small" type="button" data-action="source-fit" data-mode="fit" title="Toda la fuente dentro de la salida">Ajustar</button>
+                <button class="btn btn--small" type="button" data-action="source-fit" data-mode="fill" title="Toda la salida cubierta">Llenar</button>
+                <button class="btn btn--small" type="button" data-action="source-fit" data-mode="center" title="Tamaño original, centrada">Original</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <h3 class="form-header">Recorte</h3>
+            <div class="form-group">
+              <div class="form-row form-row--pair">
+                <label class="mini-field"><span>Arriba</span><input class="form-input form-input--num" type="number" min="0" step="1" data-crop="top"></label>
+                <label class="mini-field"><span>Abajo</span><input class="form-input form-input--num" type="number" min="0" step="1" data-crop="bottom"></label>
+              </div>
+              <div class="form-row form-row--pair">
+                <label class="mini-field"><span>Izquierda</span><input class="form-input form-input--num" type="number" min="0" step="1" data-crop="left"></label>
+                <label class="mini-field"><span>Derecha</span><input class="form-input form-input--num" type="number" min="0" step="1" data-crop="right"></label>
+              </div>
+            </div>
+            <p class="form-footer">En píxeles de la fuente. Lo que queda no se estira.</p>
+          </section>
+
+          <section class="form-section">
+            <div class="form-group">
+              <label class="form-row"><span class="form-label">Opacidad</span><span class="slider-field"><input class="slider" type="range" min="0" max="100" step="1" data-field="opacity" data-scale="100" aria-label="Opacidad"><output></output></span></label>
+            </div>
+          </section>
+
+          <section class="form-section" id="chroma-section">
+            <div class="form-group">
+              <label class="form-row"><span class="form-label form-label--strong">Chroma key</span><input class="switch" type="checkbox" role="switch" data-field="chroma.enabled"></label>
+                <div class="form-row" data-chroma><span class="form-label">Color clave</span>
+                  <span class="swatches">
+                    <button class="swatch swatch--green" type="button" data-action="chroma-preset" data-color="#00ff00" aria-label="Verde" title="Verde"></button>
+                    <button class="swatch swatch--blue" type="button" data-action="chroma-preset" data-color="#0000ff" aria-label="Azul" title="Azul"></button>
+                    <input class="color-well" type="color" data-field="chroma.color" aria-label="Otro color clave">
+                  </span>
+                </div>
+                <label class="form-row" data-chroma><span class="form-label">Similitud</span><span class="slider-field"><input class="slider" type="range" min="1" max="1000" step="1" data-field="chroma.similarity" data-scale="1000" aria-label="Similitud"><output></output></span></label>
+                <label class="form-row" data-chroma><span class="form-label">Suavidad</span><span class="slider-field"><input class="slider" type="range" min="1" max="1000" step="1" data-field="chroma.smoothness" data-scale="1000" aria-label="Suavidad"><output></output></span></label>
+                <label class="form-row" data-chroma><span class="form-label">Reducir el derrame</span><span class="slider-field"><input class="slider" type="range" min="1" max="1000" step="1" data-field="chroma.spill" data-scale="1000" aria-label="Reducción del derrame"><output></output></span></label>
+            </div>
+            <p class="form-footer">Elige el color del fondo y sube la similitud hasta que desaparezca.</p>
+          </section>
+        </div>
       </aside>
     </main>
   </div>
@@ -234,28 +429,6 @@
       </section>
 
       <section class="form-section">
-        <h3 class="form-header">OBS Studio</h3>
-        <div class="form-group">
-          <label class="form-row">
-            <span class="form-label">Servidor</span>
-            <input class="form-input" id="field-obs-host" name="obsHost" type="text" placeholder="127.0.0.1" autocomplete="off" spellcheck="false">
-          </label>
-          <label class="form-row">
-            <span class="form-label">Puerto</span>
-            <input class="form-input form-input--short" id="field-obs-port" name="obsPort" type="number" min="1" max="65535" placeholder="4455">
-          </label>
-          <label class="form-row">
-            <span class="form-label">Contraseña</span>
-            <input class="form-input" id="field-obs-pass" name="obsPassword" type="password" autocomplete="off" placeholder="Sin contraseña">
-          </label>
-          <label class="form-row" id="field-obs-clear-row">
-            <span class="form-label">Quitar la contraseña guardada</span>
-            <input class="switch" id="field-obs-clear" name="clearObsPassword" type="checkbox" role="switch">
-          </label>
-        </div>
-      </section>
-
-      <section class="form-section">
         <h3 class="form-header" id="appearance-title">Apariencia</h3>
         <div class="appearance" role="radiogroup" aria-labelledby="appearance-title">
           <label class="appearance-option">
@@ -283,6 +456,29 @@
         <button class="btn btn--primary" type="submit">Guardar y conectar</button>
       </footer>
     </form>
+  </dialog>
+
+  <!-- Pantalla o ventana: miniaturas de lo que se puede capturar. -->
+  <dialog class="dialog dialog--picker" id="capture-dialog" aria-labelledby="capture-title">
+    <div class="dialog-form">
+      <header class="dialog-head">
+        <h2 id="capture-title">Pantalla o ventana</h2>
+        <button class="close-btn" type="button" data-action="capture-close" aria-label="Cerrar"><svg class="icon" aria-hidden="true"><use href="#i-xmark"/></svg></button>
+      </header>
+      <p class="form-footer" id="capture-status"></p>
+      <section class="form-section" id="capture-screens-section">
+        <h3 class="form-header">Pantallas</h3>
+        <div class="captures" id="capture-screens"></div>
+      </section>
+      <section class="form-section" id="capture-windows-section">
+        <h3 class="form-header">Ventanas</h3>
+        <div class="captures" id="capture-windows"></div>
+      </section>
+      <footer class="dialog-actions">
+        <button class="btn" type="button" data-action="capture-refresh">Actualizar</button>
+        <button class="btn" type="button" data-action="capture-close">Cancelar</button>
+      </footer>
+    </div>
   </dialog>
 </body>
 </html>

@@ -1,15 +1,13 @@
 // Modo navegador: el núcleo corre en la página y se conecta directo por WebSocket.
-// El puente USB lo hace un proceso aparte (start_app.sh --web o tenveo_bridge.py).
-// La configuración se guarda en el navegador. La contraseña de OBS solo dura la sesión.
+// La configuración se guarda en el navegador.
 //
-// Para desarrollo se pueden cambiar las direcciones con la URL:
-//   ?pc500=ws://127.0.0.1:18089&obs=127.0.0.1:14455
-// Con ?demo la consola usa simuladores del PC500 y de OBS dentro de la página,
-// sin red. Sirve para probarla desde cualquier dispositivo o un Codespace.
+// Para desarrollo se puede cambiar la dirección del PC500 con la URL:
+//   ?pc500=ws://127.0.0.1:18089
+// Con ?demo la consola usa un simulador del PC500 dentro de la página, sin red.
+// Sirve para probarla desde cualquier dispositivo o un Codespace.
 
-import { ObsService } from '../../core/obs-service.js';
 import { createSimulatedWebSocket } from '../../core/simulated-websocket.js';
-import { createObsSimulator, createPc500Simulator } from '../../core/simulators.js';
+import { createPc500Simulator } from '../../core/simulators.js';
 import { StudioController } from '../../core/studio-controller.js';
 import { TenveoService } from '../../core/tenveo-service.js';
 
@@ -38,12 +36,9 @@ export function createLocalBackend() {
   const settings = demo ? {} : readSettings();
 
   const tenveoOptions = {};
-  const obsOptions = {};
   if (demo) {
     tenveoOptions.WebSocketImpl = createSimulatedWebSocket(createPc500Simulator());
-    obsOptions.WebSocketImpl = createSimulatedWebSocket(createObsSimulator());
     settings.ethernetIp = 'simulador';
-    settings.obsHost = 'simulador';
   } else {
     // ?pc500=ws://<IP>:<puerto> fija el equipo (lo usan las pruebas).
     const pc500 = params.get('pc500');
@@ -52,17 +47,10 @@ export function createLocalBackend() {
       settings.ethernetIp = url.hostname.replace(/^\[|\]$/g, '');
       if (url.port) tenveoOptions.ethernetPort = Number(url.port);
     }
-    const obsParam = params.get('obs');
-    if (obsParam) {
-      const [host, port] = obsParam.split(':');
-      if (host) settings.obsHost = host;
-      if (port) settings.obsPort = Number(port);
-    }
   }
 
   const controller = new StudioController({
     tenveo: new TenveoService(tenveoOptions),
-    obs: new ObsService(obsOptions),
     settings,
     // En el modo demo no se guarda nada, para no pisar la configuración real.
     persist: demo ? () => {} : (next) => writeSettings(next),

@@ -17,7 +17,6 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import electronPath from 'electron';
-import { startMockObs } from '../dev/mock-obs.js';
 import { startMockPc500 } from '../dev/mock-pc500.js';
 
 const projectDir = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -38,7 +37,6 @@ function freePort() {
 // El PC500 simulado está en 127.0.0.1: sus destinos de STREAM apuntan a
 // rtmp://127.0.0.1:1935/live/, que aquí es el servidor RTMP de prueba.
 const pc500 = await startMockPc500({ ip: '127.0.0.1' });
-const obs = await startMockObs();
 const rtmpPort = await freePort();
 const key = 'live2';
 const { ELECTRON_RUN_AS_NODE, ...baseEnv } = process.env;
@@ -71,8 +69,6 @@ const appProcess = spawn(appCommand, packaged ? [] : [projectDir], {
     ...baseEnv,
     TENVEO_ETHERNET_IP: '127.0.0.1',
     TENVEO_PC500_PORT: String(pc500.port),
-    TENVEO_OBS_HOST: '127.0.0.1',
-    TENVEO_OBS_PORT: String(obs.port),
     TENVEO_DISABLE_ADB: '1',
     TENVEO_USER_DATA: userData,
     TENVEO_DEVICE_RTMP_PORT: String(rtmpPort),
@@ -130,7 +126,7 @@ const checks = [
   ['STREAM quedó apagado', pc500.state.buttons.stream === false],
 ];
 
-await Promise.allSettled([pc500.close(), obs.close(), deviceServer.stop()]);
+await Promise.allSettled([pc500.close(), deviceServer.stop()]);
 await fs.rm(userData, { recursive: true, force: true });
 await fs.rm(storeDir, { recursive: true, force: true });
 

@@ -1,6 +1,6 @@
 // Puente seguro entre la ventana y el proceso principal.
 // La ventana no tiene acceso a Node: solo ve estas funciones.
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld(
   'tenveo',
@@ -19,5 +19,7 @@ contextBridge.exposeInMainWorld(
       ipcRenderer.on('tenveo:menu', handler);
       return () => ipcRenderer.removeListener('tenveo:menu', handler);
     },
+    // La ruta de un archivo arrastrado desde el Finder (imágenes y videos).
+    pathForFile: (file) => webUtils.getPathForFile(file),
   }),
 );

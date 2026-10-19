@@ -1,5 +1,6 @@
 // Interfaz de la consola. No abre conexiones: dibuja el estado que recibe y
 // manda comandos al núcleo (en Electron, por IPC; en el navegador, directo).
+// En la app de escritorio también está la vista Producción (production-view.js).
 
 import {
   AUDIO_CHANNELS,
@@ -22,13 +23,7 @@ const els = {
   hw: $('hw-status'),
   hwText: $('hw-text'),
   hwLatency: $('hw-latency'),
-  obsPill: $('obs-pill'),
-  obsPillText: $('obs-pill-text'),
   demoTag: $('demo-tag'),
-  sync: $('sync-toggle'),
-  obsStream: $('obs-stream'),
-  obsRecord: $('obs-record'),
-  obsVcam: $('obs-vcam'),
   pvwCam: $('pvw-cam'),
   pvwSub: $('pvw-sub'),
   pvwLabel: $('pvw-label'),
@@ -49,8 +44,6 @@ const els = {
   tbarHandle: $('tbar-handle'),
   tbarValue: $('tbar-value'),
   mixer: $('mixer'),
-  obsLink: $('obs-link'),
-  scenes: $('scenes'),
   factConnection: $('fact-connection'),
   factLatency: $('fact-latency'),
   factIp: $('fact-ip'),
@@ -70,14 +63,14 @@ const els = {
   discoverRow: $('discover-row'),
   discovery: $('discovery'),
   adbText: $('adb-text'),
-  fieldObsHost: $('field-obs-host'),
-  fieldObsPort: $('field-obs-port'),
-  fieldObsPass: $('field-obs-pass'),
-  fieldObsClear: $('field-obs-clear'),
-  fieldObsClearRow: $('field-obs-clear-row'),
   settingsError: $('settings-error'),
   appearance: document.querySelectorAll('input[name="appearance"]'),
   tabs: document.querySelector('.tabs'),
+  views: $('views'),
+  consoleView: $('console-view'),
+  studioView: $('studio-view'),
+  consoleScenes: $('console-scenes'),
+  tabScenes: $('tab-scenes'),
 };
 
 const root = document.documentElement;
@@ -87,7 +80,7 @@ root.dataset.platform = backend.kind;
 root.dataset.os = /Mac/.test(navigator.platform) ? 'mac' : 'other';
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
-// La isla de la barra: el estado del PC500 y de OBS, y los avisos que salen de ella.
+// La isla de la barra: el estado del PC500 y los avisos que salen de ella.
 const island = createIsland({
   island: $('island'),
   status: $('island-status'),
@@ -473,7 +466,7 @@ const pgmVideo = createPgmVideo({
 // Por un cable directo el video llega por adb en red; en la misma red IPv4,
 // directo. Solo hace falta contarlo cuando algo falla o se está conectando.
 function videoRouteSummary(adb) {
-  if (snapshot?.extras?.demo) return 'Modo demo: equipo y OBS simulados.';
+  if (snapshot?.extras?.demo) return 'Modo demo: el PC500 es un simulador.';
   if (backend.kind === 'browser') return 'Modo navegador: el video del PC500 solo se ve en la app de escritorio.';
   if (!adb || adb.state === 'off' || adb.state === 'stopped' || adb.state === 'disabled') return '';
   if (adb.state === 'ready') return 'Video por el cable de red (adb).';
@@ -481,11 +474,6 @@ function videoRouteSummary(adb) {
 }
 
 // --- Dibujo ---
-
-function setActive(element, active) {
-  element.classList.toggle('is-active', Boolean(active));
-  setPressed(element, active);
-}
 
 const isIPv6 = (host) => String(host).includes(':');
 
@@ -497,7 +485,7 @@ function connectionText(sw) {
   return sw.lastError && /IP/.test(sw.lastError) ? 'Sin IP' : 'Buscando…';
 }
 
-function renderTopbar(sw, obs, settings, extras) {
+function renderTopbar(sw, settings, extras) {
   const connected = sw.connection === 'ethernet';
   els.hw.classList.toggle('is-on', connected);
   setRootData('connected', String(connected));
@@ -508,18 +496,6 @@ function renderTopbar(sw, obs, settings, extras) {
   setText(els.hwLatency, connected && Number.isFinite(sw.latencyMs) ? `${sw.latencyMs} ms` : '');
   els.hw.title = [connected ? sw.endpoint : sw.lastError, videoRouteSummary(extras?.adb)].filter(Boolean).join('\n');
   setHidden(els.demoTag, !extras?.demo);
-
-  const linked = obs.status === 'connected';
-  const problem = !linked && Boolean(obs.lastError);
-  els.obsPill.classList.toggle('is-on', linked);
-  els.obsPill.classList.toggle('is-warn', problem);
-  setText(els.obsPillText, linked ? 'Conectado' : problem ? 'Revisar' : 'Sin conexión');
-  els.obsPill.title = obs.lastError || (linked ? `OBS en ${obs.endpoint}` : 'Abre OBS y activa su servidor WebSocket.');
-
-  els.sync.setAttribute('aria-pressed', String(Boolean(settings.syncWithObs)));
-  setActive(els.obsStream, obs.streaming);
-  setActive(els.obsRecord, obs.recording);
-  setActive(els.obsVcam, obs.virtualCam);
 }
 
 // Preview elegido en la app que el equipo todavía no confirmó: la tecla se
@@ -599,45 +575,6 @@ function renderMixer(sw) {
       parts.mute.setAttribute('aria-pressed', String(mode === 'OFF'));
       parts.mode.hidden = mode !== 'AFV';
     }
-  }
-}
-
-let scenesKey = '';
-function renderObs(obs) {
-  const linked = obs.status === 'connected';
-  const problem = !linked && Boolean(obs.lastError);
-  setText(els.obsLink, linked ? 'Conectado' : problem ? 'Revisar' : 'Sin conexión');
-  els.obsLink.classList.toggle('is-on', linked);
-  els.obsLink.classList.toggle('is-warn', problem);
-  els.obsLink.title = obs.lastError || (linked ? `OBS en ${obs.endpoint}` : '');
-
-  const key = JSON.stringify([linked, obs.scenes, obs.programScene, obs.lastError]);
-  if (key === scenesKey) return;
-  scenesKey = key;
-  els.scenes.replaceChildren();
-  if (!linked || obs.scenes.length === 0) {
-    const empty = document.createElement('p');
-    empty.className = 'empty';
-    empty.textContent = linked
-      ? 'OBS no tiene escenas.'
-      : obs.lastError || 'Abre OBS y activa Herramientas > Configuración del servidor WebSocket.';
-    els.scenes.append(empty);
-    return;
-  }
-  for (const name of obs.scenes) {
-    const current = name === obs.programScene;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = current ? 'scene is-current' : 'scene';
-    button.dataset.action = 'obs-scene';
-    button.dataset.scene = name;
-    const dot = document.createElement('span');
-    dot.className = 'scene-dot';
-    const label = document.createElement('span');
-    label.className = 'scene-name';
-    label.textContent = name;
-    button.append(dot, label);
-    els.scenes.append(button);
   }
 }
 
@@ -738,11 +675,14 @@ function renderDiscovery(discovery) {
 function render() {
   renderQueued = false;
   if (!snapshot) return;
-  const { switcher: sw, obs, settings, extras } = snapshot;
-  renderTopbar(sw, obs, settings, extras);
+  const { switcher: sw, settings, extras } = snapshot;
+  if (Boolean(extras?.window?.hidden) !== windowHidden) {
+    windowHidden = Boolean(extras?.window?.hidden);
+    applyVisibility();
+  }
+  renderTopbar(sw, settings, extras);
   renderStage(sw);
   renderMixer(sw);
-  renderObs(obs);
   renderDevice(sw, settings, extras);
   renderDialog(sw, settings, extras);
   pgmVideo.update(snapshot);
@@ -757,19 +697,89 @@ function scheduleRender() {
 // --- Pestañas ---
 
 const TAB_KEY = 'tenveo-studio.tab';
-function selectTab(name) {
-  for (const tab of document.querySelectorAll('.tab')) {
-    const selected = tab.dataset.tab === name;
+const VIEW_KEY = 'tenveo-studio.view';
+
+// Control segmentado: solo el segmento elegido entra en el orden del
+// tabulador; las flechas mueven entre ellos (patrón de pestañas de ARIA).
+function markSegments(container, attribute, name) {
+  for (const tab of container.querySelectorAll('.tab')) {
+    const selected = tab.dataset[attribute] === name;
     tab.setAttribute('aria-selected', String(selected));
-    // Solo la pestaña elegida entra en el orden del tabulador; las flechas mueven entre ellas.
     tab.tabIndex = selected ? 0 : -1;
   }
-  for (const panel of document.querySelectorAll('.panel')) panel.hidden = panel.dataset.panel !== name;
+  // El pulgar se desliza hasta el segmento elegido entre los que se ven.
+  const visible = [...container.querySelectorAll('.tab')].filter((tab) => !tab.hidden);
+  container.style.setProperty('--segments', String(visible.length));
+  container.style.setProperty('--segment', String(Math.max(0, visible.findIndex((tab) => tab.dataset[attribute] === name))));
+}
+
+function remember(key, value) {
   try {
-    localStorage.setItem(TAB_KEY, name);
+    localStorage.setItem(key, value);
   } catch {
-    // Sin almacenamiento: la pestaña no se recuerda.
+    // Sin almacenamiento: no se recuerda.
   }
+}
+
+function selectTab(name) {
+  markSegments(els.tabs, 'tab', name);
+  for (const panel of document.querySelectorAll('.sidebar .panel')) panel.hidden = panel.dataset.panel !== name;
+  remember(TAB_KEY, name);
+}
+
+// --- Vistas: Consola y Producción ---
+
+let studio = null;
+let currentView = 'console';
+
+function selectView(name) {
+  if (!studio) name = 'console';
+  currentView = name;
+  markSegments(els.views, 'view', name);
+  setHidden(els.consoleView, name !== 'console');
+  setHidden(els.studioView, name !== 'studio');
+  setRootData('view', name);
+  applyVisibility();
+  remember(VIEW_KEY, name);
+}
+
+// El monitor PGM y el estudio solo dibujan si se ven: ni en la otra vista ni
+// con la ventana minimizada u oculta. El video se sigue recibiendo igual.
+let windowHidden = false;
+function applyVisibility() {
+  pgmVideo.setDrawing(currentView === 'console' && !windowHidden);
+  studio?.show(currentView === 'studio' && !windowHidden);
+}
+
+// La pestaña Escenas de la consola: cambiar de escena sin dejar la consola.
+function renderConsoleScenes() {
+  if (!studio) return;
+  const live = studio.liveScene();
+  const rows = studio.scenes().map((scene) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = scene.id === live ? 'scene is-current' : 'scene';
+    button.dataset.action = 'scene-live';
+    button.dataset.id = scene.id;
+    button.setAttribute('role', 'option');
+    button.setAttribute('aria-selected', String(scene.id === live));
+    const dot = document.createElement('span');
+    dot.className = 'scene-dot';
+    const name = document.createElement('span');
+    name.className = 'scene-name';
+    name.textContent = scene.name;
+    button.append(dot, name);
+    return button;
+  });
+  els.consoleScenes.replaceChildren(...rows);
+}
+
+// Qué le falta al programa del PC500 para verse en la salida.
+function describePc500() {
+  const dv = snapshot?.extras?.deviceVideo;
+  if (!dv?.connected) return 'Esperando el PC500…';
+  if (!dv.streaming) return 'STREAM apagado: enciéndelo en la consola, pestaña Equipo';
+  return 'Esperando el video del PC500…';
 }
 
 // --- Diálogo de conexión ---
@@ -784,12 +794,6 @@ function openSettings(trigger) {
   if (!snapshot) return;
   const { settings } = snapshot;
   els.fieldIp.value = settings.ethernetIp || '';
-  els.fieldObsHost.value = settings.obsHost || '';
-  els.fieldObsPort.value = String(settings.obsPort || '');
-  els.fieldObsPass.value = '';
-  els.fieldObsPass.placeholder = settings.hasObsPassword ? 'Guardada' : 'Sin contraseña';
-  els.fieldObsClear.checked = false;
-  els.fieldObsClearRow.hidden = !settings.hasObsPassword;
   showFormError('');
   els.dialog.showModal();
   if (trigger) {
@@ -805,13 +809,7 @@ function openSettings(trigger) {
 async function saveSettings(event) {
   event.preventDefault();
   try {
-    const response = await backend.send('saveSettings', {
-      ethernetIp: els.fieldIp.value,
-      obsHost: els.fieldObsHost.value,
-      obsPort: els.fieldObsPort.value || 4455,
-      obsPassword: els.fieldObsPass.value,
-      clearObsPassword: els.fieldObsClear.checked,
-    });
+    const response = await backend.send('saveSettings', { ethernetIp: els.fieldIp.value });
     if (response?.ok === false) {
       showFormError(response.error);
       return;
@@ -848,13 +846,10 @@ const ACTIONS = {
   auto: () => send('auto'),
   ftb: () => send('ftb'),
   'press-button': (t) => send('pressButton', t.dataset.button),
-  'toggle-sync': () => send('toggleObsSync'),
-  'obs-stream': () => send('obsToggleStream'),
-  'obs-record': () => send('obsToggleRecord'),
-  'obs-vcam': () => send('obsToggleVirtualCam'),
-  'obs-scene': (t) => send('obsSetScene', t.dataset.scene),
   mute: (t) => send('toggleMute', t.dataset.channel),
   tab: (t) => selectTab(t.dataset.tab),
+  view: (t) => selectView(t.dataset.view),
+  'scene-live': (t) => studio?.goLive(t.dataset.id),
   'open-settings': (t) => openSettings(t),
   'close-settings': () => els.dialog.close(),
   reconnect: () => send('retryHardware'),
@@ -880,22 +875,30 @@ function onClick(event) {
 const TAB_KEYS = { ArrowLeft: -1, ArrowRight: 1, Home: -Infinity, End: Infinity };
 
 function moveTab(event) {
-  const tabs = [...els.tabs.querySelectorAll('.tab')];
+  const group = event.target.closest('.segmented');
+  const tabs = [...group.querySelectorAll('.tab')].filter((tab) => !tab.hidden);
   const index = tabs.indexOf(event.target);
   const step = TAB_KEYS[event.key];
   const next = Number.isFinite(step) ? (index + step + tabs.length) % tabs.length : step < 0 ? 0 : tabs.length - 1;
   event.preventDefault();
-  selectTab(tabs[next].dataset.tab);
+  if (group === els.views) selectView(tabs[next].dataset.view);
+  else selectTab(tabs[next].dataset.tab);
   tabs[next].focus();
 }
 
 function onKeyDown(event) {
-  if (els.dialog.open || event.metaKey || event.ctrlKey || event.altKey) return;
-  if (event.target.closest('.tab') && Object.hasOwn(TAB_KEYS, event.key)) {
+  if (els.dialog.open) return;
+  const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
+  if (plain && event.target.closest('.segmented .tab') && Object.hasOwn(TAB_KEYS, event.key)) {
     moveTab(event);
     return;
   }
-  if (event.target.closest('input, select, textarea')) return;
+  // En Producción el teclado es del estudio: mover, borrar, deshacer…
+  if (currentView === 'studio') {
+    studio?.onKeyDown(event);
+    return;
+  }
+  if (!plain || event.target.closest('input, select, textarea')) return;
   const cam = { 1: '1', 2: '2', 3: '3', 4: '4', 5: 'aux' }[event.key];
   if (cam) selectPreview(cam);
 }
@@ -910,35 +913,48 @@ setupTbar();
 document.addEventListener('click', onClick);
 document.addEventListener('keydown', onKeyDown);
 els.form.addEventListener('submit', saveSettings);
-// El vidrio se ilumina desde el punto donde se presiona.
-document.addEventListener(
-  'pointerdown',
-  (event) => {
-    const target = event.target.closest('.capsule-btn, .icon-btn, button.status, .close-btn');
-    if (!target) return;
-    const rect = target.getBoundingClientRect();
-    target.style.setProperty('--glow-x', `${(event.clientX - rect.left).toFixed(0)}px`);
-    target.style.setProperty('--glow-y', `${(event.clientY - rect.top).toFixed(0)}px`);
-  },
-  { passive: true },
-);
 // La apariencia se aplica al instante, como en los ajustes de macOS.
 for (const input of els.appearance) input.addEventListener('change', () => send('setAppearance', input.value));
-// Tenveo Studio › Ajustes… (⌘,) en el menú de la Mac.
+// Menú de la Mac: Ajustes… (⌘,), y Consola (⌘1) y Producción (⌘2) en Visualización.
 backend.onMenu?.((action) => {
   if (action === 'open-settings' && !els.dialog.open) openSettings(document.querySelector('.icon-btn[data-action="open-settings"]'));
+  else if (action === 'view-console') selectView('console');
+  else if (action === 'view-studio') selectView('studio');
 });
 
-try {
-  const saved = localStorage.getItem(TAB_KEY);
-  if (saved && document.querySelector(`.tab[data-tab="${saved}"]`)) selectTab(saved);
-} catch {
-  // Sin almacenamiento: queda la primera pestaña.
+// El estudio de producción es de la app de escritorio: usa el video del PC500,
+// las cámaras de la Mac y archivos propios.
+if (backend.kind === 'electron') {
+  try {
+    const { createStudio } = await import('./production-view.js');
+    studio = await createStudio({ backend, pgm: pgmVideo, toast: showToast, describePc500 });
+    studio.onChange(renderConsoleScenes);
+    renderConsoleScenes();
+  } catch (error) {
+    console.error('[Producción]', error);
+    showToast(`No se pudo abrir el estudio de producción: ${error.message}`, 'error');
+  }
 }
+setHidden(els.views, !studio);
+setHidden(els.tabScenes, !studio);
+
+let savedTab = '';
+let savedView = '';
+try {
+  savedTab = localStorage.getItem(TAB_KEY) ?? '';
+  savedView = localStorage.getItem(VIEW_KEY) ?? '';
+} catch {
+  // Sin almacenamiento: queda la primera pestaña y la consola.
+}
+const tabOk = savedTab && document.querySelector(`.sidebar .tab[data-tab="${savedTab}"]:not([hidden])`);
+selectTab(tabOk ? savedTab : 'audio');
+selectView(savedView === 'studio' ? 'studio' : 'console');
 
 backend.onState((next) => {
   snapshot = next;
   scheduleRender();
+  // Lo que se ve del PC500 en la salida depende de STREAM y de la conexión.
+  studio?.refresh();
 });
 snapshot = await backend.getState();
 render();

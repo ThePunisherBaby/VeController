@@ -1,8 +1,8 @@
 # Sistema de diseño de Tenveo Studio
 
-La interfaz de la versión 1.5.0 sigue las Human Interface Guidelines de Apple (sistema 26: jerarquía, armonía y consistencia) con el método de `APPLE_FRONTEND_PROMPT.md`: especificación antes que código, tokens, springs y accesibilidad completa.
+La interfaz de la versión 1.6.0 sigue las Human Interface Guidelines de Apple (sistema 26: jerarquía, armonía y consistencia) con el método de `APPLE_FRONTEND_PROMPT.md`: especificación antes que código, tokens, springs y accesibilidad completa.
 
-El plan de esta revisión está en [PLAN_DISENO.md](PLAN_DISENO.md). Ahí está la auditoría contra el prompt, la exploración 10 → 3 → 1 del momento firma y la lista de cambios.
+El plan de la revisión 1.5.0 está en [PLAN_DISENO.md](PLAN_DISENO.md): la auditoría contra el prompt, la exploración 10 → 3 → 1 del momento firma y la lista de cambios. La vista Producción (1.6.0) sigue el mismo sistema; su diseño está en la sección 12 y su plan en [PLAN_PRODUCCION.md](PLAN_PRODUCCION.md).
 
 Las etiquetas indican de dónde sale cada decisión:
 - **[APPLE]**: HIG o documentación de Apple.
@@ -18,7 +18,7 @@ Todo vive en:
 
 ## 1. Brief
 
-- **Tarea principal:** operar el switcher en vivo, es decir, ver PGM y PVW y conmutar cámaras sin errores.
+- **Tarea principal:** operar el switcher en vivo, es decir, ver PGM y PVW y conmutar cámaras sin errores. En Producción: armar escenas y cambiar la escena de la salida.
 - **Quién y dónde:** un operador de video en una sala de control, a veces con poca luz, con mouse o trackpad. Mira la pantalla a distancia, durante sesiones largas y con prisa.
 - **Plataformas:**
   - Electron 43 (Chromium 150) en macOS, Intel y Apple Silicon;
@@ -44,7 +44,8 @@ Todo vive en:
 | Menú nativo en español, Ajustes… con ⌘, y Acerca de | Convenciones de la Mac [APPLE] |
 | Ícono en la grilla de macOS: lienzo de 1024, cuerpo squircle de 824 y sombra | Plantilla de íconos de macOS [APPLE]. La marca de la barra es el mismo dibujo |
 | Ajustes como Ajustes del Sistema: grupos de filas, interruptor, Apariencia con miniaturas | Formularios del sistema 26 [APPLE] |
-| Las salidas de OBS son segmentos solo de texto | No mezclar ícono y texto en un grupo con fondo compartido (anti-patrón 28) [APPLE] |
+| Consola · Producción es un control segmentado solo de texto, con ⌘1 y ⌘2 | Selector de vistas en la barra, como en las apps del sistema; no mezclar ícono y texto (anti-patrón 28) [APPLE] |
+| Menús nativos (botón + y clic derecho), selector de color de la Mac | Convenciones de la Mac [APPLE] |
 | Colores semánticos con `light-dark()` y cuatro variantes por color | Claro, oscuro y alto contraste [APPLE] |
 | Radio exterior 22, padding 12, radio interior 10; squircle salvo en las pantallas de video | Concentricidad [APPLE]. Un recorte que no es un óvalo sobre el canvas obliga a una máscara por cuadro [MEDIDO] |
 | Encabezados en tipo título, en negrita; mínimo 10 px | Sistema 26; mínimo de 10 pt en macOS [APPLE] |
@@ -72,7 +73,7 @@ Todo vive en:
 | `--green` | PVW, conectado | `#34C759` | `#30D158` | `#008932` | `#4AD968` |
 | `--orange` | Transición, AFV | `#FF8D28` | `#FF9230` | `#C55300` | `#FFA056` |
 | `--blue` | Foco, faders, íconos de aviso | `#0088FF` | `#0091FF` | `#1E6EF4` | `#5CB8FF` |
-| `--purple` | OBS | `#CB30E0` | `#DB34F2` | `#B02FC2` | `#EA8DFF` |
+| `--purple` | Reservado | `#CB30E0` | `#DB34F2` | `#B02FC2` | `#EA8DFF` |
 
 Rellenos encendidos y su texto (contraste WCAG 2):
 
@@ -135,14 +136,14 @@ Springs de Apple con masa 1; las fórmulas reproducen la documentación de `Swif
 
 | Capa | Elementos | Material |
 |---|---|---|
-| Contenido | Monitores, teclas, mezclador, listas, datos del equipo | Sólido, color semántico |
+| Contenido | Monitores, teclas, mezclador, listas, datos del equipo, la salida de Producción | Sólido, color semántico |
 | Controles fijos | Cápsulas de la barra, pestañas | Material plano: relleno y línea fina |
 | Estado y avisos | La isla | Cápsula negra (claro) o elevada (oscuro), sin desenfoque |
-| Sobre el video | Rótulo PGM/PVW, "En vivo" | Atenuación del 60 % y línea fina |
+| Sobre el video | Rótulo PGM/PVW, "En vivo", rótulo de la salida; selección, manijas y guías del editor | Atenuación del 60 % y línea fina; la selección es un trazo de acento con manijas blancas |
 | Temporal | Ajustes | Hoja gruesa: desenfoque real sin video, opaca con video |
 | Transitoria | Manija de la T-Bar, perillas de los faders | Se elevan al arrastrarlas: escala y sombra |
 
-El color marca solo estados: tally, Live y Rec en rojo, Vcam e interruptor en azul, la escena de OBS en morado.
+El color marca solo estados: tally en rojo y verde; interruptores, la escena de la salida y la selección en azul; las guías del imán en amarillo, como las de Keynote.
 
 ## 5. Estados de los componentes
 
@@ -155,6 +156,8 @@ El color marca solo estados: tally, Live y Rec en rojo, Vcam e interruptor en az
 | Isla | Compacta (estado), abriéndose, aviso (información, listo, error), en pausa con el puntero encima, cerrándose; se ajusta sola si cambia el ancho del estado |
 | Monitor PGM | Esperando el PC500, STREAM apagado, recibiendo, en vivo (video + "En vivo"), Fade to black, sin dato del equipo |
 | Ajustes | Cerrado, abriéndose desde el botón, abierto, buscando, resultados, error; interruptor apagado o encendido; apariencia Clara, Oscura o Automática |
+| Salida (Producción) | Sin fuentes, fuente sin imagen (recuadro punteado: abriendo, sin señal o error), fuente elegida (manijas), bloqueada (trazo punteado, sin manijas), arrastrando (guías), soltando archivos |
+| Listas de escenas y fuentes | Fila en reposo, hover, elegida (gris; con la lista en foco, acento), escena de la salida (punto), fuente oculta (atenuada), sin imagen (ícono naranja), renombrando |
 
 ## 6. Especificación de movimiento
 
@@ -212,38 +215,43 @@ Medido con `node scripts/bench-video.mjs` en el iMac de desarrollo, con video 10
 
 En corridas alternadas en las mismas condiciones, la 1.4.0 empaquetada y la 1.5.0 dan lo mismo: 121–123 contra 123–124 ms y 46–48 % de CPU en ambas. La variación entre corridas es de unos 10 ms.
 
+**1.6.0:** la consola rinde igual (113–115 ms, 60 cuadros/s, clic en 16 ms, 38–47 % de CPU). En la vista Producción, con el video del PC500 pasando por el compositor, la latencia medida en la salida compuesta es de 118–119 ms (unos 3 ms más), el compositor dibuja los 60 cuadros por segundo y la CPU queda en 43–49 %: el monitor PGM deja de dibujar mientras no se ve.
+
 **Lo que se aprendió:**
 - Cualquier `backdrop-filter` en pantalla impide que macOS presente el video como una capa propia, y la GPU compone toda la ventana 5K en cada cuadro. Pasó en la 1.4.0: 3,4 s de latencia.
 - Ni siquiera dos chips chicos con desenfoque son gratis: 133 → 365 ms.
 - Animar algo cada segundo también se nota. El rodillo en la latencia de la isla subía la GPU unos 5 puntos, y se quitó.
+- Esperar al próximo cuadro de pantalla para dibujar cada cuadro de video pierde cuadros cuando dos caen en el mismo refresco: el compositor dibujaba 55 de 60. Ahora dibuja apenas llega el cuadro si está libre.
+- Leer píxeles de la GPU en el momento la frena y hace perder cuadros: las lecturas de las pruebas son asíncronas.
 
 ## 9. Verificación
 
-- `npm test`: 98 pruebas, entre ellas los springs y la banda elástica contra el prompt y la documentación de Apple, y el ajuste de apariencia.
+- `npm test`: 107 pruebas, entre ellas los springs y la banda elástica contra el prompt y la documentación de Apple, el ajuste de apariencia y el modelo de la producción (recorte, imán, tamaños, salida).
 - `npm run smoke`, `npm run smoke:web` (también en modo demo y a 390×844 con `SMOKE_WEB_SIZE`) y `npm run smoke:video`.
-- `npm run smoke:ui`: 19 verificaciones con eventos de verdad:
+- `npm run smoke:ui`: 34 verificaciones con eventos de verdad, sin mostrar la ventana:
   - la T-Bar sigue al puntero 1:1 aunque esté elevada, el PC500 recibe su posición y se queda donde se suelta;
   - pasado el extremo se estira sin que el PC500 reciba más de 255, y vuelve;
   - las pestañas se recorren con las flechas;
   - Ajustes nace de su botón y Esc lo cierra;
   - la apariencia se aplica al instante;
   - la tecla 3 marca CAM 3 con `aria-pressed`;
-  - la isla se transforma en el aviso, con el radio sacado de su alto, y vuelve con un clic.
-- `node scripts/screenshots.mjs` captura 17 estados:
-  - pestañas, Ajustes, sin conexión;
+  - la isla se transforma en el aviso, con el radio sacado de su alto, y vuelve con un clic;
+  - en Producción: el color va al fondo y el texto al frente, lo escrito cambia el texto, arrastrar mueve con el mouse, el imán centra y muestra las dos guías, la esquina mantiene la proporción, ⌘Z y ⇧⌘Z, el chroma key borra el verde (se leen píxeles de la salida), escena nueva con su nombre, cambio de escena, la pestaña Escenas de la consola, el compositor en reposo con la consola a la vista y el guardado.
+- `node scripts/screenshots.mjs` captura 22 estados:
+  - pestañas (también Escenas), Ajustes, sin conexión;
   - tamaño mínimo, 1920 y 5K;
   - claro;
   - más contraste en oscuro y en claro;
   - transparencia reducida;
   - la isla en oscuro y en claro;
-  - Ajustes con el interruptor.
+  - Producción con el video del PC500, un logo y un rótulo: texto elegido, salida, claro, chroma key, tamaño mínimo y 5K.
 
   Las preferencias se simulan con `TENVEO_SMOKE_MEDIA` y los avisos con `TENVEO_SMOKE_EVAL`.
 - Isla en cámara lenta, al 10 %, con `tenveoTimeScale` y `Animation.setPlaybackRate`:
   - el radio crece de 16 a 20,8 px sin saltos;
   - al abrirse, el estado ya está en 0 cuando el mensaje empieza a aparecer;
   - al cerrarse, el mensaje se va antes de que vuelva el estado. Esto se corrigió tras verlo en cámara lenta.
-- `node scripts/bench-video.mjs` y `--ajustes`.
+- `node scripts/bench-video.mjs`, `--ajustes` y `--produccion`.
 
 ## 10. Autoevaluación (rúbrica del prompt, de 0 a 5)
 
@@ -264,9 +272,33 @@ En corridas alternadas en las mismas condiciones, la 1.4.0 empaquetada y la 1.5.
 
 ## 11. Pendiente de validar
 
+- Producción con una persona: el tamaño de las manijas (10 px, con 22 px de agarre) y del imán (8 px de pantalla).
+
 - Valores [HEURÍSTICA] en uso real:
   - tiempo de la isla (4,5 s);
   - estiramiento de la T-Bar (36);
   - alto de las teclas (`clamp(52px, 8,4vh, 84px)`).
 - Una pasada con VoiceOver y con el teclado completo.
 - En una Mac con Apple Silicon quizás el desenfoque sobre el video sea gratis. Medir con `bench-video` antes de cambiar la regla.
+
+## 12. Producción (1.6.0)
+
+**Disposición:** la salida arriba, tan grande como entra en 16:9 (con unidades de contenedor); Escenas y Fuentes debajo, en dos tarjetas; a la derecha, Propiedades, como el inspector de Keynote. Es la disposición de OBS, que el usuario conoce, con las formas de la Mac.
+
+| Decisión | Por qué |
+|---|---|
+| La salida es contenido opaco con una línea fina; sin squircle | Es video, como los monitores [MEDIDO] |
+| Selección: trazo de 1,5 px del acento, manijas blancas redondas de 10 px con 22 px de agarre, fuera del recorte redondeado | Como Keynote y Freeform [APPLE]; nada de halos |
+| Guías del imán amarillas, de un píxel, solo mientras se arrastra | Guías de alineación de Keynote [APPLE] |
+| Una fuente sin imagen se marca con un recuadro punteado y un texto, solo en el editor | El estado se ve sin ensuciar la salida |
+| El rótulo de la salida se aparta cuando entra el puntero | Para editar sin nada encima |
+| Listas como las del Finder: la fila elegida en gris, en acento si la lista tiene el foco; doble clic o Enter para renombrar | Convención de la Mac [APPLE] |
+| Escena nueva con el nombre listo para escribir | Como una carpeta nueva en el Finder [APPLE] |
+| Fuentes nuevas al frente; el color al fondo | Como OBS; un fondo de color al frente taparía todo |
+| Propiedades en grupos de filas, como Ajustes; campos de número con flechas (Mayúsculas: de a 10); deslizadores planos con perilla blanca | El mismo sistema que Ajustes y los faders |
+| Alineación del texto con íconos en un segmentado | Tres palabras no entran en el ancho del inspector |
+| Color con el panel de colores de la Mac; anillo de selección en las muestras de chroma | Convención de la Mac [APPLE] |
+| Menús nativos en + y en el clic derecho | Convención de la Mac [APPLE] |
+| Deshacer con ⌘Z que no cambia la escena de la salida | Deshacer una edición no debe cambiar lo que sale al aire |
+| Nada con desenfoque en Producción: el diálogo de pantallas y Ajustes van opacos | Hay video en pantalla [MEDIDO] |
+

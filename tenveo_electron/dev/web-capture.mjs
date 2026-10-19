@@ -14,19 +14,17 @@ const READY = `(() => {
   const root = document.documentElement;
   return root.dataset.ready === 'true'
     && root.dataset.platform === 'browser'
-    && document.getElementById('hw-status').classList.contains('is-on')
-    && document.getElementById('obs-link').textContent === 'Conectado';
+    && document.getElementById('hw-status').classList.contains('is-on');
 })()`;
 
 const SUMMARY = `(() => ({
   platform: document.documentElement.dataset.platform,
   hardware: document.getElementById('hw-text').textContent,
   hardwareTitle: document.getElementById('hw-status').title,
-  obs: document.getElementById('obs-link').textContent,
   pgm: document.getElementById('pgm-label').textContent,
   pvw: document.getElementById('pvw-label').textContent,
-  scenes: [...document.querySelectorAll('#scenes .scene')].map((b) => b.textContent.trim()),
-  currentScene: document.querySelector('#scenes .scene.is-current')?.textContent.trim() ?? null,
+  views: !document.getElementById('views').hidden,
+  scenesTab: !document.getElementById('tab-scenes').hidden,
   demoTag: !document.getElementById('demo-tag').hidden,
 }))()`;
 

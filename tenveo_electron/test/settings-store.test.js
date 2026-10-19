@@ -17,41 +17,50 @@ async function tempFile(t) {
   return path.join(dir, 'settings.json');
 }
 
-test('guarda la configuración con la contraseña cifrada', async (t) => {
+test('guarda la configuración con los secretos cifrados', async (t) => {
   const file = await tempFile(t);
   const store = new SettingsStore(file, fakeSafeStorage);
-  await store.save({ ethernetIp: '192.168.1.188', obsHost: '127.0.0.1', obsPort: 4455, syncWithObs: false }, 'secreto');
+  await store.save({ ethernetIp: '192.168.1.188', appearance: 'dark' }, { streamKey: 'secreto' });
 
   const text = await fs.readFile(file, 'utf8');
   assert.equal(text.includes('"secreto"'), false);
-  assert.equal(JSON.parse(text).obsPasswordEncrypted, Buffer.from('cifrado:secreto').toString('base64'));
+  assert.equal(JSON.parse(text).secretsEncrypted, Buffer.from('cifrado:{"streamKey":"secreto"}').toString('base64'));
   assert.equal((await fs.stat(file)).mode & 0o777, 0o600);
 
   const loaded = await store.load();
-  assert.equal(loaded.obsPassword, 'secreto');
-  assert.deepEqual(loaded.settings, { ethernetIp: '192.168.1.188', obsHost: '127.0.0.1', obsPort: 4455, syncWithObs: false });
+  assert.deepEqual(loaded.secrets, { streamKey: 'secreto' });
+  assert.deepEqual(loaded.settings, { ethernetIp: '192.168.1.188', appearance: 'dark' });
 });
 
-test('guardar sin contraseña conserva la anterior, y vacía la borra', async (t) => {
+test('guardar sin secretos conserva los anteriores, y vacíos los borra', async (t) => {
   const file = await tempFile(t);
   const store = new SettingsStore(file, fakeSafeStorage);
-  await store.save({ ethernetIp: '' }, 'secreto');
+  await store.save({ ethernetIp: '' }, { streamKey: 'secreto' });
   await store.save({ ethernetIp: '10.0.0.2' }, undefined);
-  assert.equal((await store.load()).obsPassword, 'secreto');
-  await store.save({ ethernetIp: '10.0.0.2' }, '');
-  assert.equal((await store.load()).obsPassword, '');
+  assert.deepEqual((await store.load()).secrets, { streamKey: 'secreto' });
+  await store.save({ ethernetIp: '10.0.0.2' }, {});
+  assert.deepEqual((await store.load()).secrets, {});
 });
 
-test('sin cifrado disponible no escribe la contraseña', async (t) => {
+test('sin cifrado disponible no escribe los secretos', async (t) => {
   const file = await tempFile(t);
   const store = new SettingsStore(file, { isEncryptionAvailable: () => false });
-  await store.save({ ethernetIp: '' }, 'secreto');
-  assert.equal(JSON.parse(await fs.readFile(file, 'utf8')).obsPasswordEncrypted, '');
+  await store.save({ ethernetIp: '' }, { streamKey: 'secreto' });
+  assert.equal(JSON.parse(await fs.readFile(file, 'utf8')).secretsEncrypted, '');
+});
+
+test('descarta la contraseña de OBS de versiones anteriores', async (t) => {
+  const file = await tempFile(t);
+  await fs.writeFile(file, JSON.stringify({ ethernetIp: '10.0.0.5', obsHost: 'x', obsPasswordEncrypted: 'abc' }));
+  const store = new SettingsStore(file, fakeSafeStorage);
+  const loaded = await store.load();
+  assert.equal('obsPasswordEncrypted' in loaded.settings, false);
+  assert.deepEqual(loaded.secrets, {});
 });
 
 test('un archivo dañado se trata como configuración vacía', async (t) => {
   const file = await tempFile(t);
   await fs.writeFile(file, '{ esto no es json');
   const store = new SettingsStore(file, fakeSafeStorage);
-  assert.deepEqual(await store.load(), { settings: {}, obsPassword: '' });
+  assert.deepEqual(await store.load(), { settings: {}, secrets: {} });
 });

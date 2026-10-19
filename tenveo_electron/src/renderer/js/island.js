@@ -1,4 +1,4 @@
-// La isla: la cápsula de estado del centro de la barra (PC500 y OBS) que se
+// La isla: la cápsula de estado del centro de la barra (el PC500) que se
 // transforma en los avisos y vuelve, como la Dynamic Island.
 //
 // Es un phase morph (PLAN_DISENO.md, sección 2): ancho y alto son dos springs

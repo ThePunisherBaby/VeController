@@ -3,12 +3,16 @@
 // Lo decodifica y lo dibuja un worker (pgm-worker.js) sobre un canvas
 // transferido, así ni el trabajo de la interfaz frena el video ni el video
 // frena la interfaz. Aquí solo se decide cuándo arrancarlo y qué mostrar
-// mientras no hay imagen.
+// mientras no hay imagen. El mismo worker le pasa los cuadros al estudio de
+// producción (tap) y deja de dibujar cuando el monitor no está a la vista.
 
 export function createPgmVideo({ canvas, placeholder, hint, badge }) {
   let worker = null;
   let current = '';
   let showing = false;
+  let tapPort = null;
+  let tapOn = false;
+  let drawOn = true;
   // Con video en pantalla la interfaz evita los desenfoques de fondo (CSS).
   const root = document.documentElement;
 
@@ -51,6 +55,12 @@ export function createPgmVideo({ canvas, placeholder, hint, badge }) {
     // Diagnóstico para las mediciones: tenveoPgmDebug(true) mide la latencia
     // con el emisor de prueba.
     globalThis.tenveoPgmDebug = (on) => worker.postMessage({ type: 'debug', on });
+    if (tapPort) {
+      worker.postMessage({ type: 'tap', port: tapPort }, [tapPort]);
+      tapPort = null;
+    }
+    worker.postMessage({ type: 'tap-on', on: tapOn });
+    worker.postMessage({ type: 'draw', on: drawOn });
     return worker;
   }
 
@@ -62,6 +72,21 @@ export function createPgmVideo({ canvas, placeholder, hint, badge }) {
   }
 
   return {
+    /** Puerto por el que el estudio de producción recibe cada cuadro. */
+    tap(port) {
+      if (worker) worker.postMessage({ type: 'tap', port }, [port]);
+      else tapPort = port;
+    },
+    setTap(on) {
+      if (tapOn === on) return;
+      tapOn = on;
+      worker?.postMessage({ type: 'tap-on', on });
+    },
+    setDrawing(on) {
+      if (drawOn === on) return;
+      drawOn = on;
+      worker?.postMessage({ type: 'draw', on });
+    },
     update(snapshot) {
       const status = snapshot.extras?.video;
       const url = status?.state === 'receiving' && status.playUrl ? status.playUrl : '';

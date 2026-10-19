@@ -1,6 +1,7 @@
 // Guarda la configuración en settings.json, dentro de la carpeta de datos de la app.
-// La contraseña de OBS se cifra con safeStorage, que usa el llavero de macOS.
-// Si el cifrado no está disponible, la contraseña solo dura la sesión.
+// Los secretos (por ejemplo, claves de transmisión) se cifran con safeStorage,
+// que usa el llavero de macOS. Si el cifrado no está disponible, duran solo la
+// sesión: nunca se escriben en claro.
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -17,23 +18,25 @@ export class SettingsStore {
 
   async load() {
     const data = await this.#read();
-    let obsPassword = '';
-    const encrypted = typeof data.obsPasswordEncrypted === 'string' ? data.obsPasswordEncrypted : '';
+    let secrets = {};
+    const encrypted = typeof data.secretsEncrypted === 'string' ? data.secretsEncrypted : '';
     if (encrypted && this.#canEncrypt()) {
       try {
-        obsPassword = this.#safeStorage.decryptString(Buffer.from(encrypted, 'base64'));
+        const parsed = JSON.parse(this.#safeStorage.decryptString(Buffer.from(encrypted, 'base64')));
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) secrets = parsed;
       } catch (error) {
-        console.warn('[Settings] No se pudo descifrar la contraseña de OBS:', error.message);
+        console.warn('[Settings] No se pudieron descifrar los secretos:', error.message);
       }
     }
-    const { obsPasswordEncrypted, ...settings } = data;
-    return { settings, obsPassword };
+    // obsPasswordEncrypted es de versiones anteriores (OBS ya no se usa).
+    const { secretsEncrypted, obsPasswordEncrypted, ...settings } = data;
+    return { settings, secrets };
   }
 
-  // obsPassword undefined deja la contraseña guardada como estaba.
-  save(settings, obsPassword) {
+  // secrets undefined deja los secretos guardados como estaban.
+  save(settings, secrets) {
     // Un guardado fallido no debe bloquear los siguientes.
-    this.#queue = this.#queue.catch(() => {}).then(() => this.#write(settings, obsPassword));
+    this.#queue = this.#queue.catch(() => {}).then(() => this.#write(settings, secrets));
     return this.#queue;
   }
 
@@ -46,12 +49,13 @@ export class SettingsStore {
     }
   }
 
-  async #write(settings, obsPassword) {
+  async #write(settings, secrets) {
     const current = await this.#read();
-    const next = { ...settings, obsPasswordEncrypted: current.obsPasswordEncrypted ?? '' };
-    if (obsPassword !== undefined) {
-      next.obsPasswordEncrypted =
-        obsPassword && this.#canEncrypt() ? this.#safeStorage.encryptString(obsPassword).toString('base64') : '';
+    const next = { ...settings, secretsEncrypted: current.secretsEncrypted ?? '' };
+    if (secrets !== undefined) {
+      const empty = !secrets || Object.keys(secrets).length === 0;
+      next.secretsEncrypted =
+        !empty && this.#canEncrypt() ? this.#safeStorage.encryptString(JSON.stringify(secrets)).toString('base64') : '';
     }
     await fs.mkdir(path.dirname(this.#file), { recursive: true });
     const temp = `${this.#file}.tmp`;

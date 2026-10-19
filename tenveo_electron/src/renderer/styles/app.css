@@ -347,52 +347,6 @@ button {
   white-space: nowrap;
 }
 
-/* Las salidas de OBS: un grupo de segmentos solo de texto. */
-.segment-capsule {
-  gap: 2px;
-  padding: 0 3px;
-}
-
-.segment-capsule .capsule-btn {
-  height: calc(var(--control-h) - 6px);
-  padding: 0 12px;
-  background: transparent;
-  color: var(--label-2);
-}
-
-.segment-capsule .capsule-btn:hover {
-  background: var(--fill-4);
-  color: var(--label);
-}
-
-.segment-capsule .capsule-btn:active {
-  background: var(--fill-3);
-}
-
-.capsule-btn.is-active,
-.segment-capsule .capsule-btn.is-active {
-  background: var(--pgm);
-  color: var(--on-pgm);
-}
-
-.capsule-btn--blue.is-active,
-.segment-capsule .capsule-btn--blue.is-active {
-  background: var(--accent-fill);
-  color: var(--on-accent);
-}
-
-.sync-btn {
-  color: var(--label-2);
-}
-
-.sync-btn[aria-pressed="true"] {
-  color: var(--label);
-}
-
-.sync-btn[aria-pressed="true"] .icon {
-  color: var(--purple-text);
-}
-
 .icon-btn {
   justify-content: center;
   width: var(--control-h);
@@ -400,12 +354,12 @@ button {
   color: var(--label-2);
 }
 
-:is(.sync-btn, .icon-btn):hover {
+.icon-btn:hover {
   background: var(--control-hover);
   color: var(--label);
 }
 
-:is(.sync-btn, .icon-btn):active {
+.icon-btn:active {
   background: var(--control-press);
 }
 
@@ -1171,19 +1125,12 @@ button.status:active {
   top: 3px;
   bottom: 3px;
   left: 3px;
-  width: calc((100% - 6px) / 3);
+  width: calc((100% - 6px) / var(--segments, 3));
   border-radius: 999px;
   background: light-dark(#ffffff, #636366);
   box-shadow: 0 1px 2px light-dark(rgb(0 0 0 / 0.12), rgb(0 0 0 / 0.3)), 0 0 0 var(--hair) light-dark(rgb(0 0 0 / 0.04), transparent);
+  translate: calc(100% * var(--segment, 0)) 0;
   transition: translate var(--dur-snappy) var(--ease-snappy);
-}
-
-.tabs:has(> .tab:nth-of-type(2)[aria-selected="true"]) .segmented-thumb {
-  translate: 100% 0;
-}
-
-.tabs:has(> .tab:nth-of-type(3)[aria-selected="true"]) .segmented-thumb {
-  translate: 200% 0;
 }
 
 .tab {
@@ -1417,7 +1364,7 @@ button.status:active {
   color: var(--on-pgm);
 }
 
-/* --- Escenas de OBS: lista agrupada --- */
+/* --- Escenas de la producción: lista agrupada --- */
 
 .scenes {
   flex: 0 1 auto;
@@ -1484,18 +1431,18 @@ button.status:active {
 }
 
 .scene.is-current .scene-dot {
-  border-color: var(--purple);
-  background: var(--purple);
+  border-color: var(--blue);
+  background: var(--blue);
 }
 
-/* ✓ de la escena al aire, como en una lista del sistema. */
+/* ✓ de la escena que está en la salida, como en una lista del sistema. */
 .scene.is-current::after {
   content: "";
   flex: none;
   width: 16px;
   height: 16px;
   margin-left: auto;
-  background: var(--purple-text);
+  background: var(--blue-text);
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
@@ -1727,11 +1674,11 @@ code {
 
 /* Vidrio grueso de verdad (desenfoque y saturación del fondo) solo sin video;
    con video, el mismo material opaco, para que el monitor no pierda fluidez. */
-:root:not([data-video="live"]) .dialog {
+:root:not([data-video="live"], [data-view="studio"]) .dialog {
   backdrop-filter: blur(var(--sheet-blur)) saturate(180%);
 }
 
-:root[data-video="live"] .dialog {
+:root:is([data-video="live"], [data-view="studio"]) .dialog {
   background: var(--sheet-solid);
 }
 
@@ -2061,6 +2008,838 @@ code {
 }
 
 /* ============================================================
+   Producción
+   ============================================================ */
+
+/* Consola · Producción, en la barra. */
+.views {
+  width: 210px;
+}
+
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blue-text);
+  font: 500 12px/15px var(--font);
+  letter-spacing: var(--track-12);
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.studio {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 24vw, 360px);
+  gap: var(--space-3);
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+/* La salida arriba, tan grande como entre; escenas y fuentes debajo. */
+.studio-main {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) clamp(170px, 26vh, 260px);
+  gap: var(--space-3);
+}
+
+.output-area {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  container-type: size;
+}
+
+/* La salida con su capa de selección encima, del mismo tamaño. */
+.output-frame {
+  position: relative;
+  width: min(100cqw, 100cqh * 16 / 9);
+  aspect-ratio: 16 / 9;
+}
+
+/* Contenido, opaco y sin squircle: es video (como los monitores). Una línea
+   fina marca su borde sobre el fondo negro. */
+.output {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: var(--radius-outer);
+  background: var(--screen);
+}
+
+.output::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 var(--hair) light-dark(rgb(0 0 0 / 0.1), rgb(255 255 255 / 0.14));
+  pointer-events: none;
+}
+
+.output-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.output-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: var(--radius-outer);
+}
+
+.output-overlay:focus-visible {
+  outline: 0;
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--blue) 60%, transparent);
+}
+
+.output-frame.is-dragging .output-overlay {
+  cursor: grabbing;
+}
+
+/* El rótulo se aparta cuando el puntero entra a editar. */
+.output-label {
+  pointer-events: none;
+  transition: opacity var(--dur-fade) var(--ease-smooth);
+}
+
+.output-frame:hover .output-label {
+  opacity: 0;
+}
+
+.tally-tag--out {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+/* Selección: un trazo fino del color de acento y manijas blancas, como en
+   Keynote. Nada de halos. */
+.selection {
+  position: absolute;
+  pointer-events: none;
+  outline: 1.5px solid var(--blue);
+}
+
+.selection.is-locked {
+  outline-style: dashed;
+}
+
+.selection.is-locked .handle {
+  display: none;
+}
+
+.handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px var(--blue), 0 1px 2px rgb(0 0 0 / 0.3);
+  pointer-events: auto;
+}
+
+/* Zona de agarre más grande que lo que se ve. */
+.handle::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
+.handle--nw { left: 0; top: 0; cursor: nwse-resize; }
+.handle--n { left: 50%; top: 0; cursor: ns-resize; }
+.handle--ne { left: 100%; top: 0; cursor: nesw-resize; }
+.handle--e { left: 100%; top: 50%; cursor: ew-resize; }
+.handle--se { left: 100%; top: 100%; cursor: nwse-resize; }
+.handle--s { left: 50%; top: 100%; cursor: ns-resize; }
+.handle--sw { left: 0; top: 100%; cursor: nesw-resize; }
+.handle--w { left: 0; top: 50%; cursor: ew-resize; }
+
+/* Guías del imán: amarillas, como las de alineación de Keynote. */
+.guide {
+  position: absolute;
+  pointer-events: none;
+  background: #ffd60a;
+}
+
+.guide--x {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  margin-left: -0.5px;
+}
+
+.guide--y {
+  left: 0;
+  right: 0;
+  height: 1px;
+  margin-top: -0.5px;
+}
+
+/* Una fuente que todavía no tiene imagen: solo en el editor, nunca en la salida. */
+.placeholder-box {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  overflow: hidden;
+  padding: var(--space-2);
+  border: 1px dashed rgb(235 235 245 / 0.32);
+  border-radius: 12px;
+  color: rgb(235 235 245 / 0.72);
+  font: 500 12px/15px var(--font);
+  letter-spacing: var(--track-12);
+  text-align: center;
+  pointer-events: none;
+}
+
+.placeholder-box .icon {
+  width: 22px;
+  height: 22px;
+  opacity: 0.55;
+}
+
+.drop-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  background: rgb(0 0 0 / 0.55);
+  box-shadow: inset 0 0 0 3px var(--blue);
+  color: #ffffff;
+  font: 600 15px/20px var(--font);
+  letter-spacing: -0.23px;
+  pointer-events: none;
+}
+
+/* --- Escenas y fuentes --- */
+
+.docks {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.dock {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--card-pad);
+}
+
+.dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0 0 var(--space-1);
+}
+
+.dock-tools {
+  display: flex;
+  gap: 2px;
+}
+
+.tool-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--label-2);
+}
+
+.tool-btn:hover {
+  background: var(--fill-4);
+  color: var(--label);
+}
+
+.tool-btn:active {
+  background: var(--fill-3);
+}
+
+.tool-btn:disabled {
+  background: transparent;
+  color: var(--label-3);
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+  padding: var(--space-1);
+  border-radius: var(--radius-inner);
+  corner-shape: squircle;
+  background: var(--fill-4);
+}
+
+.list:focus-visible {
+  outline-offset: 0;
+}
+
+.list > .empty {
+  padding: var(--space-2);
+}
+
+.list-item {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 30px;
+  padding: 0 4px 0 10px;
+  border-radius: 7px;
+  color: var(--label);
+  font: 400 13px/16px var(--font);
+  letter-spacing: var(--track-13);
+}
+
+.list-item:hover {
+  background: var(--fill-4);
+}
+
+/* Como en el Finder: la fila elegida se tiñe de acento si la lista tiene el foco. */
+.list-item[aria-selected="true"] {
+  background: var(--fill-2);
+  font-weight: 500;
+}
+
+.list:focus-within .list-item[aria-selected="true"] {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+/* La escena que está en la salida lleva un punto. */
+.list-item[data-list="scene"]::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid var(--label-3);
+  border-radius: 50%;
+}
+
+.list-item[data-list="scene"][aria-selected="true"]::before {
+  border-color: var(--blue);
+  background: var(--blue);
+}
+
+.list:focus-within .list-item[data-list="scene"][aria-selected="true"]::before {
+  border-color: currentColor;
+  background: currentColor;
+}
+
+.item-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--label-2);
+}
+
+.list:focus-within .list-item[aria-selected="true"] .item-icon {
+  color: inherit;
+}
+
+.list-item.is-waiting .item-icon {
+  color: var(--orange-text);
+}
+
+.item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-item.is-off :is(.item-name, .item-icon) {
+  opacity: 0.45;
+}
+
+.item-btn {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--label-3);
+}
+
+.item-btn .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.item-btn:hover,
+.item-btn[aria-pressed="true"] {
+  color: var(--label);
+}
+
+.item-btn:hover {
+  background: var(--fill-3);
+}
+
+.list:focus-within .list-item[aria-selected="true"] .item-btn {
+  color: inherit;
+}
+
+.rename-input {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  margin-left: -4px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--card);
+  box-shadow: 0 0 0 2px var(--blue);
+  color: var(--label);
+  font: inherit;
+  user-select: text;
+}
+
+.rename-input:focus-visible {
+  outline: 0;
+}
+
+/* --- Propiedades --- */
+
+.inspector {
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4) var(--card-pad) var(--card-pad);
+}
+
+.inspector-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.inspector-pane:not([hidden]) {
+  animation: panel-in var(--dur-micro) var(--ease-smooth) backwards;
+}
+
+.inspector-title {
+  padding: 0 var(--space-1);
+  font: 700 15px/20px var(--font);
+  letter-spacing: -0.23px;
+}
+
+.inspector-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 var(--space-1);
+}
+
+.source-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 9px;
+  corner-shape: squircle;
+  background: var(--fill-3);
+}
+
+.source-icon .icon {
+  width: 20px;
+  height: 20px;
+}
+
+.inspector-id {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.name-input {
+  width: calc(100% + 8px);
+  height: 24px;
+  margin-left: -4px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--label);
+  font: 700 15px/20px var(--font);
+  letter-spacing: -0.23px;
+  user-select: text;
+}
+
+.name-input:hover {
+  background: var(--fill-4);
+}
+
+.name-input:focus-visible {
+  outline-offset: 0;
+  background: var(--input);
+}
+
+.inspector-sub {
+  overflow: hidden;
+  color: var(--label-2);
+  font: 400 11px/14px var(--font);
+  letter-spacing: var(--track-11);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-hint {
+  margin: 0;
+  padding: 0 var(--space-3);
+  color: var(--label-2);
+  font: 400 12px/16px var(--font);
+  letter-spacing: var(--track-12);
+}
+
+.inspector .form-row {
+  min-height: 38px;
+  gap: var(--space-3);
+}
+
+.inspector .form-section {
+  user-select: text;
+}
+
+.form-label--value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--label-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.form-label--strong {
+  font-weight: 600;
+}
+
+.form-row--pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form-row--buttons {
+  justify-content: flex-start;
+  gap: var(--space-2);
+}
+
+.form-row--stack {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+}
+
+.mini-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--label-2);
+  font: 400 12px/15px var(--font);
+  letter-spacing: var(--track-12);
+}
+
+.form-input--num {
+  flex: 0 0 76px;
+  width: 76px;
+  font-variant-numeric: tabular-nums;
+}
+
+.form-input--num::-webkit-inner-spin-button,
+.form-input--num::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.form-input--num:focus-visible {
+  text-align: right;
+}
+
+.field-unit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--label-2);
+  font: 400 12px/15px var(--font);
+}
+
+.form-select {
+  max-width: 190px;
+  height: 26px;
+  padding: 0 26px 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m7 10 5-5 5 5M7 14l5 5 5-5' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") right 7px center / 12px no-repeat,
+    var(--control);
+  box-shadow: 0 1px 1px var(--control-shadow), inset 0 0 0 var(--hair) var(--control-edge);
+  color: var(--label);
+  font: 400 13px/16px var(--font);
+  appearance: none;
+}
+
+.form-select:hover {
+  background-color: var(--control-hover);
+}
+
+.form-textarea {
+  display: block;
+  width: 100%;
+  min-height: 60px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--input);
+  box-shadow: inset 0 0 0 var(--hair) var(--hairline);
+  color: var(--label);
+  font: 400 13px/18px var(--font);
+  letter-spacing: var(--track-13);
+  resize: vertical;
+}
+
+.form-textarea:focus-visible {
+  outline-offset: 0;
+}
+
+/* Deslizador plano con perilla blanca, como los faders del mezclador. */
+.slider-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 1 170px;
+  min-width: 0;
+}
+
+.slider-field--color {
+  flex-basis: 200px;
+}
+
+.slider-field output {
+  flex: none;
+  width: 42px;
+  color: var(--label-2);
+  font: 400 12px/15px var(--font);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.slider {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--accent-fill) var(--fill, 0%), var(--fill-2) var(--fill, 0%));
+}
+
+.slider::-webkit-slider-thumb {
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25), 0 0 0 var(--hair) rgb(0 0 0 / 0.08);
+  appearance: none;
+  transition: scale var(--dur-micro) var(--ease-smooth);
+}
+
+.slider:active::-webkit-slider-thumb {
+  scale: calc(1 + 0.08 * var(--motion));
+}
+
+/* El selector de color abre el panel de colores de la Mac. */
+.color-well {
+  flex: none;
+  width: 44px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: var(--control);
+  box-shadow: inset 0 0 0 var(--hair) var(--control-edge);
+}
+
+.color-well::-webkit-color-swatch-wrapper {
+  padding: 3px;
+}
+
+.color-well::-webkit-color-swatch {
+  border: 0;
+  border-radius: 4px;
+}
+
+.swatches {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--swatch);
+  box-shadow: inset 0 0 0 var(--hair) rgb(0 0 0 / 0.2);
+}
+
+.swatch--green {
+  --swatch: #00ff00;
+}
+
+.swatch--blue {
+  --swatch: #0000ff;
+}
+
+/* El color elegido lleva un anillo, como en los ajustes del sistema. */
+.swatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--group), 0 0 0 4px var(--blue);
+}
+
+/* Elección exclusiva en segmentos (alineación del texto). */
+.choice {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--fill-3);
+}
+
+.choice label {
+  position: relative;
+  display: block;
+}
+
+.choice input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+}
+
+.choice span {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 22px;
+  border-radius: 6px;
+  color: var(--label-2);
+}
+
+.choice input:checked + span {
+  background: light-dark(#ffffff, #636366);
+  box-shadow: 0 1px 2px light-dark(rgb(0 0 0 / 0.12), rgb(0 0 0 / 0.3));
+  color: var(--label);
+}
+
+.choice input:focus-visible + span {
+  outline: 3px solid color-mix(in srgb, var(--blue) 60%, transparent);
+}
+
+/* --- Pantalla o ventana --- */
+
+.dialog--picker {
+  width: min(760px, calc(100vw - 48px));
+}
+
+.captures {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(164px, 1fr));
+  gap: var(--space-2);
+}
+
+.capture {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: 12px;
+  corner-shape: squircle;
+  background: transparent;
+  color: var(--label);
+  text-align: left;
+}
+
+.capture:hover {
+  background: var(--fill-4);
+}
+
+.capture:active {
+  background: var(--fill-3);
+}
+
+.capture-thumb {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--fill-3);
+}
+
+.capture-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.capture-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  font: 400 12px/15px var(--font);
+  letter-spacing: var(--track-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.capture-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+/* ============================================================
    Estados
    ============================================================ */
 
@@ -2143,7 +2922,7 @@ code {
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  :root:not([data-video="live"]) .dialog {
+  :root:not([data-video="live"], [data-view="studio"]) .dialog {
     backdrop-filter: none;
   }
 
@@ -2154,7 +2933,7 @@ code {
 }
 
 @media (prefers-contrast: more) {
-  :root:not([data-video="live"]) .dialog {
+  :root:not([data-video="live"], [data-view="studio"]) .dialog {
     backdrop-filter: none;
   }
 

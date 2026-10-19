@@ -17,6 +17,8 @@
 //   node scripts/bench-video.mjs --segundos 20 --perfil 1080p60 --json salida.json
 //   node scripts/bench-video.mjs --registro    muestra lo que escriben la app y el emisor
 //   node scripts/bench-video.mjs --ajustes     mide con el diálogo de ajustes abierto sobre el video
+//   node scripts/bench-video.mjs --produccion  mide la vista Producción: el video pasa por el
+//       compositor y la latencia se lee de la salida compuesta
 //   node scripts/bench-video.mjs --equipo fe80::…%en0
 //       con el PC500 real: enciende STREAM (solo si sus destinos son el servidor
 //       interno), mide cuadros, tirones y CPU, y apaga STREAM. No cambia el
@@ -43,6 +45,7 @@ const seconds = Number(arg('--segundos', '15'));
 const jsonOut = arg('--json');
 const verbose = process.argv.includes('--registro');
 const withSettings = process.argv.includes('--ajustes');
+const studioView = process.argv.includes('--produccion');
 const device = arg('--equipo');
 const output = verbose ? 'inherit' : 'ignore';
 const PROFILES = {
@@ -241,6 +244,65 @@ const MEASURE = `async (ms, stamped) => {
   };
 }`;
 
+// Corre en la ventana, en la vista Producción: el monitor PGM no dibuja y el
+// video llega al compositor. La hora estampada se lee de la salida compuesta
+// (el programa del PC500 está a pantalla completa en la escena).
+const MEASURE_STUDIO = `async (ms) => {
+  const s0 = { ...globalThis.tenveoPgmStats };
+  const frames = [];
+  let running = true;
+  let last = 0;
+  const tick = (t) => {
+    if (last) frames.push(t - last);
+    last = t;
+    if (running) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  let longCount = 0;
+  let longTotal = 0;
+  let observer = null;
+  try {
+    observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        longCount += 1;
+        longTotal += entry.duration;
+      }
+    });
+    observer.observe({ entryTypes: ['longtask'] });
+  } catch {}
+  const k = 1920 / (globalThis.tenveoPgmStats?.width || 1920);
+  const block = Math.floor((globalThis.tenveoPgmStats?.width || 1920) / 48);
+  const points = Array.from({ length: 32 }, (_, bit) => ({ x: (bit * block + block / 2) * k, y: (block / 2) * k }));
+  const latency = [];
+  const fps = [];
+  const timer = setInterval(async () => {
+    fps.push(globalThis.tenveoProductionStats?.fps ?? 0);
+    const pixels = await tenveoStudio.probe(points);
+    let stamp = 0;
+    for (const p of pixels) stamp = stamp * 2 + ((p[0] + p[1] + p[2]) / 3 > 128 ? 1 : 0);
+    const delta = ((Date.now() % 2 ** 32) - stamp + 2 ** 32) % 2 ** 32;
+    if (delta < 30000) latency.push(delta);
+  }, 250);
+  await new Promise((resolve) => setTimeout(resolve, ms));
+  running = false;
+  clearInterval(timer);
+  observer?.disconnect();
+  const s1 = globalThis.tenveoPgmStats;
+  return {
+    latency,
+    buffer: [],
+    frames,
+    longCount,
+    longTotal,
+    decoded: s1.decoded - s0.decoded,
+    dropped: s1.skipped - s0.skipped,
+    size: [s1.width, s1.height],
+    compositorFps: fps,
+    forwarded: s1.forwarded - s0.forwarded,
+    compositor: globalThis.tenveoProductionStats ?? null,
+  };
+}`;
+
 // Corre en la ventana: pulsa cámaras en Preview y mide hasta que se pintan.
 const CLICKS = `async (rounds) => {
   const times = [];
@@ -290,7 +352,8 @@ const appProcess = spawn(appCommand, appArgs, {
     ? { ...baseEnv, TENVEO_ETHERNET_IP: device, TENVEO_OBS_HOST: '127.0.0.1', TENVEO_OBS_PORT: '1', TENVEO_USER_DATA: userData }
     : {
         ...baseEnv,
-        // La 1.2.0 entiende TENVEO_USB_URL y TENVEO_VIDEO; la actual, la IP y el puerto.
+        // La 1.2.0 entiende TENVEO_USB_URL y TENVEO_VIDEO; la actual, la IP y el
+        // puerto. Hasta la 1.5.0 la app buscaba OBS: el puerto 1 lo deja apagado.
         TENVEO_USB_URL: `ws://127.0.0.1:${pc500.port}`,
         TENVEO_VIDEO: 'pull',
         TENVEO_ETHERNET_IP: '127.0.0.1',
@@ -348,6 +411,10 @@ try {
     throw new Error(`El video no llegó al monitor PGM: ${why}`);
   }
   await delay(3000);
+  if (studioView) {
+    await page.evaluate(`document.getElementById('view-studio').click()`);
+    await delay(3000);
+  }
   if (withSettings) {
     await page.evaluate(`document.querySelector('[data-action="open-settings"]').click()`);
     await delay(1000);
@@ -355,7 +422,8 @@ try {
 
   const cpuStart = cpuByType(appProcess.pid);
   const wallStart = Date.now();
-  const measured = await page.evaluate(`(${MEASURE})(${seconds * 1000}, ${!device})`);
+  const measured = await page.evaluate(studioView ? `(${MEASURE_STUDIO})(${seconds * 1000})` : `(${MEASURE})(${seconds * 1000}, ${!device})`);
+  if (studioView) await page.evaluate(`document.getElementById('view-console').click()`);
   const wall = (Date.now() - wallStart) / 1000;
   const cpuEnd = cpuByType(appProcess.pid);
   // Con el equipo real no se toca el Preview.
@@ -385,6 +453,9 @@ try {
       tareasLargasMs: measured.longTotal,
     },
     clicMs: stats(clicks),
+    compositorFps: measured.compositorFps ? { ...stats(measured.compositorFps), min: Math.min(...measured.compositorFps) } : null,
+    reenviados: measured.forwarded ?? null,
+    compositor: measured.compositor ?? null,
     cpuPct: { ...cpu, total: Object.values(cpu).reduce((a, b) => a + b, 0) },
   };
 } catch (error) {
@@ -412,12 +483,13 @@ if (failure) {
 const r = result;
 const fmt = (value, digits = 1) => (value === null || value === undefined || Number.isNaN(value) ? '—' : value.toFixed(digits));
 console.log(`App: ${r.app}`);
-console.log(`Video: ${r.perfil.nombre} (${r.cuadros.tamano.join('x')}), ${fmt(r.segundos)} s medidos${withSettings ? ', con Ajustes abierto' : ''}`);
+console.log(`Video: ${r.perfil.nombre} (${r.cuadros.tamano.join('x')}), ${fmt(r.segundos)} s medidos${withSettings ? ', con Ajustes abierto' : ''}${studioView ? ', en la vista Producción' : ''}`);
 console.log(`Latencia de punta a punta: mediana ${fmt(r.latenciaMs?.mediana, 0)} ms · p95 ${fmt(r.latenciaMs?.p95, 0)} ms · máx ${fmt(r.latenciaMs?.max, 0)} ms`);
 console.log(`Búfer del reproductor (o espera del monitor): mediana ${fmt(r.bufferS?.mediana, 2)} s · máx ${fmt(r.bufferS?.max, 2)} s`);
 console.log(`Cuadros: ${r.cuadros.decodificados} decodificados · ${r.cuadros.perdidos} perdidos (${fmt(r.cuadros.perdidosPct)} %)`);
 console.log(`Ventana: ${fmt(r.ventana.fps)} cuadros/s · intervalo p95 ${fmt(r.ventana.intervaloMs?.p95)} ms · tirones ${fmt(r.ventana.tironesPct)} % · tareas largas ${r.ventana.tareasLargas} (${fmt(r.ventana.tareasLargasMs, 0)} ms)`);
 console.log(`Clic → Preview pintado: mediana ${fmt(r.clicMs?.mediana)} ms · p95 ${fmt(r.clicMs?.p95)} ms`);
+if (r.compositorFps) console.log(`Compositor: mediana ${fmt(r.compositorFps.mediana, 0)} cuadros/s · mínimo ${fmt(r.compositorFps.min, 0)} · cuadros del PC500 recibidos ${r.reenviados} · ${JSON.stringify(r.compositor)}`);
 console.log(`CPU (% de un núcleo): total ${fmt(r.cpuPct.total, 0)} · principal ${fmt(r.cpuPct.principal, 0)} · GPU ${fmt(r.cpuPct.gpu, 0)} · ventana ${fmt(r.cpuPct.ventana, 0)} · otros ${fmt(r.cpuPct.otros, 0)}`);
 if (jsonOut) await fs.writeFile(jsonOut, `${JSON.stringify(r, null, 2)}\n`);
 process.exit(0);

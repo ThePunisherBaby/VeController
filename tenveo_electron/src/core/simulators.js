@@ -1,9 +1,8 @@
-// Simuladores del PC500 y de OBS, sin red de por medio.
+// Simulador del PC500, sin red de por medio.
 // Los usan las pruebas, los simuladores por WebSocket de dev/ y el modo demo
 // de la versión web (?demo). El del PC500 imita el protocolo del panel web
 // original; no es el firmware real.
 
-import { obsAuthString } from './obs-auth.js';
 import { PANEL_BUTTONS } from './pc500-protocol.js';
 
 const CAMS = ['1', '2', '3', '4', 'aux'];
@@ -169,120 +168,6 @@ export function createPc500Simulator({ autoDelayMs = 600, ip = '192.168.1.188' }
           if (!data) return;
           received.push(data);
           for (const [key, value] of Object.entries(data)) handle(key, value);
-        },
-        close() {
-          sessions.delete(session);
-        },
-      };
-    },
-  };
-}
-
-// --- OBS WebSocket v5 ---
-
-function randomBase64(length = 16) {
-  const bytes = new Uint8Array(length);
-  globalThis.crypto.getRandomValues(bytes);
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-}
-
-export function createObsSimulator({ password = null, scenes = ['Cam 1', 'Cam 2', 'Cam 3', 'Cam 4', 'Slides'] } = {}) {
-  const state = { streaming: false, recording: false, virtualCam: false, program: scenes[0] ?? '', scenes: [...scenes] };
-  const requests = [];
-  const sessions = new Set();
-
-  const broadcast = (message) => {
-    const text = JSON.stringify(message);
-    for (const session of sessions) {
-      if (session.identified) session.send(text);
-    }
-  };
-  const emit = (eventType, eventData) => broadcast({ op: 5, d: { eventType, eventIntent: 0, eventData } });
-  const later = (fn) => setTimeout(fn, 5);
-
-  function respond(session, d) {
-    const { requestType, requestId, requestData = {} } = d;
-    let responseData = {};
-    let requestStatus = { result: true, code: 100 };
-    switch (requestType) {
-      case 'GetStreamStatus':
-        responseData = { outputActive: state.streaming, outputTimecode: '00:00:00.000' };
-        break;
-      case 'GetRecordStatus':
-        responseData = { outputActive: state.recording, outputTimecode: '00:00:00.000' };
-        break;
-      case 'GetVirtualCamStatus':
-        responseData = { outputActive: state.virtualCam };
-        break;
-      case 'GetSceneList':
-        responseData = {
-          currentProgramSceneName: state.program,
-          scenes: state.scenes.map((sceneName, sceneIndex) => ({ sceneIndex, sceneName })),
-        };
-        break;
-      case 'ToggleStream':
-        state.streaming = !state.streaming;
-        responseData = { outputActive: state.streaming };
-        later(() => emit('StreamStateChanged', { outputActive: state.streaming }));
-        break;
-      case 'ToggleRecord':
-        state.recording = !state.recording;
-        later(() => emit('RecordStateChanged', { outputActive: state.recording }));
-        break;
-      case 'ToggleVirtualCam':
-        state.virtualCam = !state.virtualCam;
-        responseData = { outputActive: state.virtualCam };
-        later(() => emit('VirtualcamStateChanged', { outputActive: state.virtualCam }));
-        break;
-      case 'SetCurrentProgramScene':
-        if (state.scenes.includes(requestData.sceneName)) {
-          state.program = requestData.sceneName;
-          later(() => emit('CurrentProgramSceneChanged', { sceneName: state.program }));
-        } else {
-          requestStatus = { result: false, code: 600, comment: 'No source was found.' };
-        }
-        break;
-      default:
-        requestStatus = { result: false, code: 204, comment: 'Unknown request type.' };
-        break;
-    }
-    session.send(JSON.stringify({ op: 7, d: { requestType, requestId, requestStatus, responseData } }));
-  }
-
-  return {
-    state,
-    requests,
-    emit,
-    // send(texto) entrega un mensaje; close(código, motivo) cierra la conexión.
-    connect(send, close = () => {}) {
-      const session = { send, identified: false, salt: randomBase64(), challenge: randomBase64() };
-      sessions.add(session);
-      const hello = { obsWebSocketVersion: '5.5.0', rpcVersion: 1 };
-      if (password) hello.authentication = { challenge: session.challenge, salt: session.salt };
-      send(JSON.stringify({ op: 0, d: hello }));
-      return {
-        async receive(text) {
-          const message = parse(text);
-          if (!message) return;
-          if (message.op === 1) {
-            if (password) {
-              const expected = await obsAuthString(password, session.salt, session.challenge);
-              if (message.d?.authentication !== expected) {
-                sessions.delete(session);
-                close(4009, 'Authentication failed.');
-                return;
-              }
-            }
-            session.identified = true;
-            send(JSON.stringify({ op: 2, d: { negotiatedRpcVersion: 1 } }));
-            return;
-          }
-          if (message.op === 6 && session.identified) {
-            requests.push(message.d);
-            respond(session, message.d);
-          }
         },
         close() {
           sessions.delete(session);

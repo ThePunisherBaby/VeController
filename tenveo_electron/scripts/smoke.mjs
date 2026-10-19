@@ -1,6 +1,6 @@
-// Prueba de humo: abre la app de Electron contra los simuladores, pulsa
+// Prueba de humo: abre la app de Electron contra el simulador del PC500, pulsa
 // botones como lo haría una persona, guarda una captura de la ventana y revisa
-// que el PC500 y OBS simulados recibieron los comandos.
+// que el PC500 recibió los comandos y que el estudio guardó su escena nueva.
 // Uso: npm run smoke [-- ruta/de/la/captura.png]
 // Con TENVEO_SMOKE_APP se prueba una app empaquetada en vez del código fuente.
 
@@ -10,20 +10,19 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import electronPath from 'electron';
-import { startMockObs } from '../dev/mock-obs.js';
 import { startMockPc500 } from '../dev/mock-pc500.js';
 
 const projectDir = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const out = path.resolve(process.argv[2] || path.join(os.tmpdir(), `tenveo-smoke-${Date.now()}.png`));
 const userData = await fs.mkdtemp(path.join(os.tmpdir(), 'tenveo-smoke-data-'));
 const pc500 = await startMockPc500({ autoDelayMs: 300 });
-const obs = await startMockObs({ password: 'mock' });
 
 const clicks = [
   '[data-action="pvw-select"][data-cam="3"]',
   '[data-action="cut"]',
   '[data-action="mute"][data-channel="in2"]',
-  '[data-action="obs-record"]',
+  '[data-action="view"][data-view="studio"]',
+  '[data-action="scene-add"]',
   // Clics extra para revisar otras vistas, por ejemplo '[data-action="open-settings"]'.
   ...String(process.env.SMOKE_EXTRA_CLICKS || '').split('|').filter(Boolean),
 ].join('|');
@@ -40,9 +39,6 @@ const child = spawn(command, args, {
     ...baseEnv,
     TENVEO_ETHERNET_IP: '127.0.0.1',
     TENVEO_PC500_PORT: String(pc500.port),
-    TENVEO_OBS_HOST: '127.0.0.1',
-    TENVEO_OBS_PORT: String(obs.port),
-    TENVEO_OBS_PASSWORD: 'mock',
     TENVEO_DISABLE_ADB: '1',
     TENVEO_USER_DATA: userData,
     TENVEO_SMOKE_SHOT: out,
@@ -63,20 +59,25 @@ try {
 } catch {
   // Sin captura: la app no llegó a terminar la prueba.
 }
+let production = null;
+try {
+  production = JSON.parse(await fs.readFile(path.join(userData, 'production.json'), 'utf8'));
+} catch {
+  // Sin producción guardada.
+}
 
 const checks = [
   ['la app terminó sin errores', code === 0],
   ['quedó conectada al PC500 simulado', snapshot?.switcher.connection === 'ethernet'],
-  ['quedó conectada a OBS con contraseña', snapshot?.obs.status === 'connected'],
   ['el PC500 recibió PVW 3', pc500.received.some((m) => m['pvw-3'] === 1)],
   ['el PC500 recibió CUT', pc500.received.some((m) => m.cut === 1)],
   ['CAM 3 quedó al aire', snapshot?.switcher.pgm === '3'],
   ['el PC500 recibió el silencio de IN 2', pc500.received.some((m) => m.audio_in2_mode === 0)],
-  ['OBS recibió ToggleRecord', obs.requests.some((r) => r.requestType === 'ToggleRecord')],
-  ['SYNC OBS puso la escena Cam 3', obs.state.program === 'Cam 3'],
+  ['ya no hay OBS en el estado', snapshot && !('obs' in snapshot)],
+  ['el estudio guardó la escena nueva, en la salida', production?.scenes.length === 2 && production.liveScene === production.scenes[1].id],
 ];
 
-await Promise.allSettled([pc500.close(), obs.close()]);
+await Promise.allSettled([pc500.close()]);
 await fs.rm(userData, { recursive: true, force: true });
 
 for (const [name, ok] of checks) console.log(`${ok ? '✔' : '✖'} ${name}`);

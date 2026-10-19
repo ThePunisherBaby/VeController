@@ -12,6 +12,7 @@ export async function connectBackend() {
       send: (type, ...args) => bridge.send(type, ...args),
       onState: (callback) => bridge.onState(callback),
       onMenu: (callback) => bridge.onMenu?.(callback),
+      pathForFile: (file) => bridge.pathForFile?.(file) ?? '',
     };
   }
   const { createLocalBackend } = await import('./local-backend.js');

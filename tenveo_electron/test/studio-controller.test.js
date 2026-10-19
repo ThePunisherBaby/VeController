@@ -1,17 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createObsState } from '../src/core/obs-service.js';
 import { createSwitcherState } from '../src/core/pc500-protocol.js';
-import {
-  DEFAULT_SETTINGS,
-  StudioController,
-  findSceneForCamera,
-  normalizeSettings,
-} from '../src/core/studio-controller.js';
+import { DEFAULT_SETTINGS, StudioController, normalizeSettings } from '../src/core/studio-controller.js';
 
-class FakeService {
-  constructor(state) {
-    this.state = state;
+class FakeTenveo {
+  constructor() {
+    this.state = createSwitcherState();
     this.calls = [];
     this.listeners = new Set();
   }
@@ -30,12 +24,7 @@ class FakeService {
     this.calls.push([name, ...args]);
     return true;
   }
-}
 
-class FakeTenveo extends FakeService {
-  constructor() {
-    super(createSwitcherState());
-  }
   start() { return this.record('start'); }
   stop() { return this.record('stop'); }
   retry() { return this.record('retry'); }
@@ -51,60 +40,21 @@ class FakeTenveo extends FakeService {
   pressButton(id) { return this.record('pressButton', id); }
 }
 
-class FakeObs extends FakeService {
-  constructor() {
-    super({ ...createObsState(), status: 'connected', scenes: ['Cam 1', 'Cam 2', 'Slides'] });
-  }
-  get isConnected() { return this.state.status === 'connected'; }
-  configure(config) { return this.record('configure', config); }
-  start() { return this.record('start'); }
-  stop() { return this.record('stop'); }
-  retry() { return this.record('retry'); }
-  setScene(name) { return this.record('setScene', name); }
-  toggleStream() { return this.record('toggleStream'); }
-  toggleRecord() { return this.record('toggleRecord'); }
-  toggleVirtualCam() { return this.record('toggleVirtualCam'); }
-}
-
 function setup(options = {}) {
   const tenveo = new FakeTenveo();
-  const obs = new FakeObs();
   const saved = [];
-  const controller = new StudioController({
-    tenveo,
-    obs,
-    persist: (settings, password) => saved.push([settings, password]),
-    ...options,
-  });
+  const controller = new StudioController({ tenveo, persist: (settings) => saved.push(settings), ...options });
   controller.start();
-  return { tenveo, obs, controller, saved };
+  return { tenveo, controller, saved };
 }
 
-test('con SYNC OBS, cambiar la cámara al aire cambia la escena', () => {
-  const { tenveo, obs } = setup();
+test('avisa de cada cambio del PC500 con una foto del estado', () => {
+  const { tenveo, controller } = setup();
+  const seen = [];
+  controller.onChange((snapshot) => seen.push(snapshot.switcher.pgm));
   tenveo.set({ pgm: '2' });
-  assert.deepEqual(obs.calls.at(-1), ['setScene', 'Cam 2']);
-});
-
-test('sin SYNC OBS no se toca la escena', () => {
-  const { tenveo, obs, controller } = setup();
-  controller.dispatch('toggleObsSync');
-  tenveo.set({ pgm: '2' });
-  assert.equal(obs.calls.some(([name]) => name === 'setScene'), false);
-});
-
-test('un cambio que no es de PGM no cambia la escena', () => {
-  const { tenveo, obs } = setup();
-  tenveo.set({ pvw: '3' });
-  assert.equal(obs.calls.some(([name]) => name === 'setScene'), false);
-});
-
-test('busca escenas por cam N, camN o camera N', () => {
-  const scenes = ['Escena Cam 3', 'cam4 cerrada', 'Camera 1 general', 'Slides'];
-  assert.equal(findSceneForCamera(scenes, '3'), 'Escena Cam 3');
-  assert.equal(findSceneForCamera(scenes, '4'), 'cam4 cerrada');
-  assert.equal(findSceneForCamera(scenes, '1'), 'Camera 1 general');
-  assert.equal(findSceneForCamera(scenes, 'aux'), null);
+  tenveo.set({ pgm: '3' });
+  assert.deepEqual(seen, ['2', '3']);
 });
 
 test('solo acepta comandos y valores conocidos', () => {
@@ -115,9 +65,10 @@ test('solo acepta comandos y valores conocidos', () => {
   assert.throws(() => controller.dispatch('selectPreview', '9'), /Cámara desconocida/);
   assert.throws(() => controller.dispatch('setVolume', 'xx', -6), /Canal desconocido/);
   assert.throws(() => controller.dispatch('pressButton', 'sys_ip'), /Botón desconocido/);
-  // Ya no hay modos USB ni fuentes de video que elegir.
+  // Ya no hay modos USB, fuentes de video ni OBS.
   assert.throws(() => controller.dispatch('setConnectionMode', 'usb'), /Comando desconocido/);
-  assert.throws(() => controller.dispatch('setVideoSource', 'usb'), /Comando desconocido/);
+  assert.throws(() => controller.dispatch('obsToggleStream'), /Comando desconocido/);
+  assert.throws(() => controller.dispatch('toggleObsSync'), /Comando desconocido/);
   controller.dispatch('switchLive', 'aux');
   controller.dispatch('toggleMute', 'mic1');
   controller.dispatch('pressButton', 'stream');
@@ -131,61 +82,33 @@ test('arranca conectando a la IP guardada, sin escribir nada', () => {
 });
 
 test('guarda la configuración y reconecta', () => {
-  const { controller, tenveo, obs, saved } = setup();
-  const settings = controller.dispatch('saveSettings', {
-    ethernetIp: ' 192.168.1.188 ',
-    obsHost: '127.0.0.1',
-    obsPort: '4456',
-    obsPassword: 'secreto',
-  });
+  const { controller, tenveo, saved } = setup();
+  const settings = controller.dispatch('saveSettings', { ethernetIp: ' 192.168.1.188 ' });
   assert.equal(settings.ethernetIp, '192.168.1.188');
-  assert.equal(settings.obsPort, 4456);
-  assert.equal(settings.hasObsPassword, true);
-  const [lastSettings, lastPassword] = saved.at(-1);
-  assert.equal(lastSettings.ethernetIp, '192.168.1.188');
-  assert.equal(lastPassword, 'secreto');
+  assert.equal(saved.at(-1).ethernetIp, '192.168.1.188');
   assert.ok(tenveo.calls.some(([n, ip]) => n === 'setEthernetIp' && ip === '192.168.1.188'));
-  assert.deepEqual(obs.calls.filter(([n]) => n === 'configure').at(-1), ['configure', { host: '127.0.0.1', port: 4456, password: 'secreto' }]);
-
-  controller.dispatch('saveSettings', { obsPassword: '' });
-  assert.equal(saved.at(-1)[1], undefined);
-  assert.equal(controller.snapshot().settings.hasObsPassword, true);
-
-  controller.dispatch('saveSettings', { clearObsPassword: true });
-  assert.equal(saved.at(-1)[1], '');
-  assert.equal(controller.snapshot().settings.hasObsPassword, false);
+  assert.ok(tenveo.calls.some(([n]) => n === 'retry'));
 });
 
-test('rechaza valores inválidos al guardar', () => {
+test('rechaza una IP inválida al guardar', () => {
   const { controller } = setup();
   assert.throws(() => controller.dispatch('saveSettings', { ethernetIp: 'http://x/' }), /IP no válida/);
-  assert.throws(() => controller.dispatch('saveSettings', { obsPort: 70000 }), /Puerto de OBS no válido/);
-  assert.throws(() => controller.dispatch('saveSettings', { obsHost: 'a b' }), /Dirección de OBS no válida/);
 });
 
 test('normaliza una configuración guardada y descarta las opciones viejas', () => {
-  const bad = normalizeSettings({ ethernetIp: 'mal/ip', obsHost: '', obsPort: 'abc', syncWithObs: 'si' });
-  assert.deepEqual(bad, { ...DEFAULT_SETTINGS });
+  assert.deepEqual(normalizeSettings({ ethernetIp: 'mal/ip', appearance: 'azul' }), { ...DEFAULT_SETTINGS });
 
-  // Una configuración de la 1.2.0, con modos USB y fuente de video.
+  // Una configuración de la 1.5.0, con OBS, y otra de la 1.2.0, con modos USB.
   const old = normalizeSettings({
     ethernetIp: 'fe80::10bf:b2ff:feee:6e2d%en0',
-    ethernetIpSource: 'auto',
     connectionMode: 'usb',
     obsHost: 'mac-estudio.local',
     obsPort: 4444,
     syncWithObs: false,
     videoSource: 'usb',
-    videoKey: 'clave_1',
-    rtmpPort: 1936,
+    appearance: 'light',
   });
-  assert.deepEqual(old, {
-    ethernetIp: 'fe80::10bf:b2ff:feee:6e2d%en0',
-    obsHost: 'mac-estudio.local',
-    obsPort: 4444,
-    syncWithObs: false,
-    appearance: 'system',
-  });
+  assert.deepEqual(old, { ethernetIp: 'fe80::10bf:b2ff:feee:6e2d%en0', appearance: 'light' });
 });
 
 test('la apariencia sigue al sistema y se puede fijar en oscura o clara', () => {
@@ -194,17 +117,16 @@ test('la apariencia sigue al sistema y se puede fijar en oscura o clara', () => 
 
   controller.dispatch('setAppearance', 'light');
   assert.equal(controller.snapshot().settings.appearance, 'light');
-  assert.equal(saved.at(-1)[0].appearance, 'light');
+  assert.equal(saved.at(-1).appearance, 'light');
 
   assert.throws(() => controller.dispatch('setAppearance', 'sepia'), /Apariencia desconocida/);
   assert.equal(controller.snapshot().settings.appearance, 'light');
-
-  assert.equal(normalizeSettings({ appearance: 'dark' }).appearance, 'dark');
-  assert.equal(normalizeSettings({ appearance: 'azul' }).appearance, 'system');
 });
 
-test('la foto del estado no incluye los datos crudos del equipo', () => {
+test('la foto del estado no incluye los datos crudos del equipo ni OBS', () => {
   const { controller, tenveo } = setup();
   tenveo.set({ raw: { mucho: 'ruido' } });
-  assert.equal('raw' in controller.snapshot().switcher, false);
+  const snapshot = controller.snapshot();
+  assert.equal('raw' in snapshot.switcher, false);
+  assert.equal('obs' in snapshot, false);
 });

@@ -1,8 +1,8 @@
 {
   "name": "tenveo-studio",
   "productName": "Tenveo Studio",
-  "version": "1.5.0",
-  "description": "Consola para controlar el switcher Tenveo PC500 y OBS Studio desde la Mac",
+  "version": "1.6.0",
+  "description": "Consola del switcher Tenveo PC500 y estudio de producción con escenas, desde la Mac",
   "author": "ThePunisherBaby",
   "private": true,
   "type": "module",
@@ -69,7 +69,10 @@
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
       "extendInfo": {
-        "NSLocalNetworkUsageDescription": "Tenveo Studio controla el switcher Tenveo PC500 y recibe su video por la red local, y se conecta a OBS."
+        "NSLocalNetworkUsageDescription": "Tenveo Studio controla el switcher Tenveo PC500 y recibe su video por la red local.",
+        "NSCameraUsageDescription": "Tenveo Studio usa las cámaras y capturadoras de la Mac como fuentes de las escenas.",
+        "NSCameraUseContinuityCameraDeviceType": true,
+        "NSMicrophoneUsageDescription": "Tenveo Studio usa el audio de las cámaras y capturadoras en las transmisiones."
       }
     },
     "dmg": {

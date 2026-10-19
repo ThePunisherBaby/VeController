@@ -19,6 +19,13 @@ Este documento detalla el estado actual del proyecto, las funciones implementada
 > - banda elástica en la T-Bar.
 >
 > Rinde igual que la 1.4.0.
+>
+> **18 de octubre de 2026 (1.6.0):** **estudio de producción dentro de la app**, en lugar de OBS (plan en [PLAN_PRODUCCION.md](tenveo_electron/PLAN_PRODUCCION.md)):
+> - escenas con fuentes en capas: el programa del PC500, cámaras de la Mac, pantalla o ventana, imágenes, videos, textos y colores;
+> - recorte, opacidad y chroma key, con manijas, imán y ⌘Z;
+> - compositor WebGL2 en un worker.
+>
+> Se quitó la integración con OBS. La consola rinde igual.
 
 ---
 
@@ -28,16 +35,16 @@ Este documento detalla el estado actual del proyecto, las funciones implementada
 - [x] **Conmutación básica en vivo:** Selección de cámaras (1, 2, 3, 4, AUX) en Preview, transiciones CUT, AUTO y FTB (Fade to Black).
 - [x] **Sincronización bidireccional:** Cambios reflejados en LEDs físicos y en la interfaz en tiempo real.
 - [x] **Migración a Electron:** Consola completa en [`tenveo_electron/`](tenveo_electron/).
-- [x] **Diseño al estilo de Apple (1.4.0 y 1.5.0):** colores de sistema con variantes clara, oscura y de alto contraste; SF Pro con los estilos de macOS; geometría concéntrica; vidrio solo en la capa de controles; springs; Reducir movimiento y transparencia. PGM grande en 16:9 con rótulos dentro de la imagen, consola en grilla, barra lateral con pestañas. Revisado en 17 capturas (`scripts/screenshots.mjs`), en un teléfono (390×844), con `smoke:ui` y medido con `bench-video` ([DISENO.md](tenveo_electron/DISENO.md)). La isla de estado y avisos, el menú de Mac y el ícono son de la 1.5.0.
+- [x] **Diseño al estilo de Apple (1.4.0 y 1.5.0):** colores de sistema con variantes clara, oscura y de alto contraste; SF Pro con los estilos de macOS; geometría concéntrica; vidrio solo en la capa de controles; springs; Reducir movimiento y transparencia. PGM grande en 16:9 con rótulos dentro de la imagen, consola en grilla, barra lateral con pestañas. Revisado en capturas (`scripts/screenshots.mjs`), en un teléfono (390×844), con `smoke:ui` y medido con `bench-video` ([DISENO.md](tenveo_electron/DISENO.md)). La isla de estado y avisos, el menú de Mac y el ícono son de la 1.5.0.
 - [x] **Comunicación por red optimizada:** una sola ruta por red; búsqueda automática del PC500 (IPv4 e IPv6); latido cada segundo con latencia visible; corte detectado en 3,5 s; reintentos de 250 ms a 2 s. **Probado con el PC500 real** por cable directo, con mediciones contra la 1.0.0 (DOCUMENTACION.md, sección 8).
 - [x] **Cable directo PC500 ↔ Mac:** control por IPv6 de enlace local y video por adb en red, sin configurar la red de la Mac. **Probado con el PC500 real.**
 - [x] **Fluidez (1.3.0):** GPU recuperada (Electron 43), monitor PGM en un worker con WebCodecs, interfaz que solo toca el DOM donde algo cambió, Preview marcado en el mismo cuadro del clic. Medido con `bench-video` (DOCUMENTACION.md, sección 8).
 - [x] **Control de todo el panel principal:** PIP, DSK, LOGO, CHROMA, LUMA, ON AIR, SET, STREAM, REC, FREEZE, SHOT, MODE, LOCK, MUTE y USER, con sus luces. STREAM probado con el PC500 real; el resto, con simulador. STREAM 2 se quitó: el firmware lo tiene desactivado.
 - [x] **Video en el monitor PGM:** del servidor interno del PC500, **probado con el PC500 real** con cámaras: 1080p60, 0 cuadros perdidos. Se recupera solo si el decodificador falla.
-- [x] **Integración OBS Studio (v5):** Stream, Grabación, Cámara Virtual, escenas y sincronización automática, con contraseña.
+- [x] **Estudio de producción (1.6.0), en lugar de OBS:** escenas con fuentes en capas (programa del PC500, cámaras de la Mac, pantalla o ventana, imágenes y GIF animados, videos, textos y colores), recorte, opacidad y chroma key, manijas con imán, historial con ⌘Z, menús nativos, arrastrar archivos del Finder y guardado automático. Compositor WebGL2 en un worker. Probado con `smoke:ui` (incluye leer píxeles de la salida para confirmar el chroma key) y medido con `bench-video --produccion`. La integración con OBS (1.0 a 1.5) se quitó.
 - [x] **Compilación sin Xcode:** App de Mac universal (Intel y Apple Silicon) en `.dmg` y `.zip` con `npm run dist`; versión web con modo demo.
 - [x] **Plug & Play:** la app busca sola el PC500 en la red e incluye `adb` para el video por cable directo.
-- [x] **Pruebas automáticas:** 98 pruebas del protocolo, la red, IPv6, OBS, la búsqueda, el video, adb, la configuración, los springs y la sintaxis, más pruebas de humo de la app, la versión web, el modo demo y el video con STREAM. Diagnóstico (`check-device`) y mediciones (`bench-network`, `bench-video`) con el equipo real.
+- [x] **Pruebas automáticas:** 107 pruebas del protocolo, la red, IPv6, la búsqueda, el video, adb, la configuración, el modelo y el guardado de la producción, los springs y la sintaxis, más pruebas de humo de la app, la versión web, el modo demo, el video con STREAM y la interfaz (con Producción). Diagnóstico (`check-device`) y mediciones (`bench-network`, `bench-video`) con el equipo real.
 
 ---
 
@@ -81,14 +88,13 @@ El análisis del firmware original (`index.js` y `pc.html`) reveló comandos adi
 
 ---
 
-### 3. Integración con OBS Studio
-- [x] **Autenticación con contraseña (OBS WebSocket v5).**
-- [ ] **Mapeo personalizado de escenas:**
-  - Permitir vincular cada botón del PC500 (Cam 1..4, Aux) con cualquier escena de OBS, sin obligar a que se llamen `Cam 1`, `Cam 2`, etc.
-- [ ] **Soporte para Modo Estudio de OBS (*Studio Mode*):**
-  - Sincronizar el bus Preview de la app con la escena de Previsualización de OBS.
-- [ ] **Vúmetros de audio de OBS:**
-  - Reflejar los niveles de audio reales de OBS en los faders. Hoy los vúmetros siguen la posición del fader, porque el PC500 no manda niveles.
+### 3. Estudio de producción (reemplazo de OBS)
+Plan completo en [PLAN_PRODUCCION.md](tenveo_electron/PLAN_PRODUCCION.md).
+- [x] **Fases 0 a 2:** quitar OBS; motor de escenas con compositor WebGL2; fuentes del PC500, cámaras de la Mac, pantalla o ventana, imágenes, videos, textos y colores; recorte, opacidad y chroma key.
+- [ ] **Fase 3, cámaras PTZ NDI de Tenveo (lo más importante para el usuario):** buscarlas en la red, recibir su video (RTSP H.264, o NDI con su SDK) y controlarlas (VISCA por IP o HTTP-CGI): joystick, zoom, foco y presets. Falta probar con una cámara.
+- [ ] **Fase 4, transmisión y grabación:** H.264 + AAC con WebCodecs, RTMP a YouTube, Twitch o un servidor propio con la clave cifrada en el llavero, calidad hasta 4K30 con aviso, grabación MP4 y estado en la isla.
+- [ ] **Fase 5, lo demás de OBS:** modo estudio (vista previa y programa), más transiciones, filtros (color, máscara, nitidez), mezclador de audio de las fuentes y atajos.
+- [ ] **Salida en la consola:** una miniatura de la salida de la producción en la pestaña Escenas (con la fase 4).
 
 ---
 
@@ -103,7 +109,7 @@ El análisis del firmware original (`index.js` y `pc.html`) reveló comandos adi
 ### 5. Empaque, Distribución y Experiencia de Usuario en macOS
 - [x] **ADB embebido (sin dependencia de terminal).**
 - [x] **Compilación Universal / Apple Silicon (ARM64 nativo).**
-- [x] **Instalador `.dmg` drag-and-drop:** `npm run dist` genera `TenveoStudio-1.5.0-universal.dmg` (220 MB).
+- [x] **Instalador `.dmg` drag-and-drop:** `npm run dist` genera `TenveoStudio-1.6.0-universal.dmg`.
 - [x] **Icono oficial de la aplicación:** `tenveo_electron/build/icon.icns`, en la grilla de íconos de macOS; `npm run icon` lo vuelve a dibujar.
 - [ ] **Firma con Developer ID y notarización:**
   - Hoy la app tiene firma provisional y otra Mac la bloquea hasta desbloquearla con `xattr`. Hace falta una cuenta de desarrollador de Apple.
@@ -120,12 +126,10 @@ gantt
 
     section Fase 1: Esenciales
     Migración a Electron                    :done, p0, 0, 2
-    Autenticación OBS con contraseña        :done, p1, 0, 2
     Red optimizada y búsqueda del PC500     :done, p1b, 1, 3
     Mute real por canal                     :done, p3, 2, 4
     Binario universal (Apple Silicon)       :done, p4, 3, 5
     Confirmar protocolo con el equipo       :active, p4b, 3, 6
-    Mapeo personalizado de escenas OBS     :p2, 4, 6
 
     section Fase 2: Hardware Completo
     T-Bar analógico continuo                :done, p5, 4, 7
@@ -141,4 +145,10 @@ gantt
     Soporte NDI | HX                        :p11, 12, 15
     Empaque final en archivo .dmg           :done, p12, 14, 16
     Firma y notarización                    :p13, 14, 16
+
+    section Fase 4: Producción (reemplazo de OBS)
+    Escenas, fuentes y compositor           :done, p14, 16, 18
+    Cámaras PTZ NDI de Tenveo               :active, p15, 18, 20
+    Transmisión a YouTube y grabación       :p16, 18, 21
+    Modo estudio, filtros y audio           :p17, 20, 23
 ```

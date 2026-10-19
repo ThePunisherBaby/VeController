@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ObsService } from '../src/core/obs-service.js';
 import { createSimulatedWebSocket } from '../src/core/simulated-websocket.js';
-import { createObsSimulator, createPc500Simulator } from '../src/core/simulators.js';
+import { createPc500Simulator } from '../src/core/simulators.js';
 import { TenveoService } from '../src/core/tenveo-service.js';
 import { until, waitFor } from './helpers.js';
 
@@ -21,34 +20,6 @@ test('modo demo: el servicio del PC500 funciona con el simulador sin red', async
   service.toggleMute('mic1');
   await until(() => simulator.state.on.mic1 === 0);
   assert.deepEqual(simulator.received.slice(-3), [{ 'pvw-aux': 1 }, { cut: 1 }, { audio_mic1_on: 0 }]);
-});
-
-test('modo demo: OBS simulado valida la contraseña', async (t) => {
-  const good = new ObsService({
-    host: 'simulador',
-    password: 'demo',
-    WebSocketImpl: createSimulatedWebSocket(createObsSimulator({ password: 'demo' })),
-  });
-  const bad = new ObsService({
-    host: 'simulador',
-    password: 'otra',
-    retryMs: 60000,
-    WebSocketImpl: createSimulatedWebSocket(createObsSimulator({ password: 'demo' })),
-  });
-  t.after(() => {
-    good.stop();
-    bad.stop();
-  });
-
-  good.start();
-  bad.start();
-  const connected = await waitFor(good, (s) => s.status === 'connected' && s.scenes.length === 5);
-  assert.equal(connected.programScene, 'Cam 1');
-  good.setScene('Slides');
-  await waitFor(good, (s) => s.programScene === 'Slides');
-
-  const rejected = await waitFor(bad, (s) => s.lastError !== null);
-  assert.equal(rejected.lastError, 'La contraseña de OBS no es correcta.');
 });
 
 test('el WebSocket simulado abre antes de entregar mensajes y avisa al cerrar', async () => {
